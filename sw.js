@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kyowa-roof-cache-v' + Date.now();
+const CACHE_NAME = 'kyowa-roof-cache-v1790450215979';
 const ASSETS = [
   './',
   './index.html',
@@ -29,7 +29,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ネットワークファースト（常に最新を取得、オフライン時のみキャッシュ）
+// ネットワークファースト（常に最新版を優先取得）
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (event.request.url.includes('generativelanguage.googleapis.com')) return;
