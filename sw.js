@@ -1,5 +1,5 @@
 // Service Worker for KYOWA ROOF PWA
-const CACHE_NAME = 'kyowa-roof-v1790446171036';
+const CACHE_NAME = 'kyowa-roof-v20260926181545';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
