@@ -93,16 +93,16 @@
       </div>
 
       <!-- ドロップゾーン -->
-      <div id="drop-zone" class="border border-dashed border-zinc-700 hover:border-orange-500 rounded-lg p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-zinc-900/60 relative group">
-        <input type="file" id="file-input" accept="application/pdf,image/*" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10">
-        <div id="drop-prompt" class="flex flex-col items-center gap-1">
+      <div id="drop-zone" onclick="document.getElementById('file-input').click()" class="border-2 border-dashed border-zinc-700 hover:border-orange-500 rounded-lg p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-zinc-900/60 relative group">
+        <input type="file" id="file-input" accept="application/pdf,image/*" class="hidden">
+        <div id="drop-prompt" class="flex flex-col items-center gap-1 pointer-events-none">
           <div class="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-orange-400 group-hover:scale-110 transition-transform">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
           </div>
           <p class="text-xs font-semibold text-zinc-200">PDF / 画像ファイルをドロップ</p>
-          <p class="text-[12px] text-zinc-500">タップして選択 / 写真撮影</p>
+          <p class="text-[12px] text-zinc-500">クリックして選択 / 写真撮影</p>
         </div>
-        <div id="file-info" class="hidden text-xs text-orange-400 font-medium"></div>
+        <div id="file-info" class="hidden text-xs text-orange-400 font-medium pointer-events-none"></div>
       </div>
 
       <!-- ズーム＆パン対応プレビュー表示領域 -->
@@ -206,7 +206,7 @@
             <span>開口部リスト (<span id="opening-count">0</span>箇所)</span>
             <button type="button" onclick="addOpeningRow()" class="text-orange-400 hover:text-orange-300 text-xs font-bold py-1 px-1">+ 開口を追加</button>
           </div>
-          <div id="openings-container" class="flex flex-col gap-1 max-h-[140px] overflow-y-auto custom-scrollbar pr-0.5">
+          <div id="openings-container" class="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar pr-0.5">
             <!-- 開口部行が動的追加されます -->
           </div>
         </div>
@@ -486,6 +486,7 @@
     }
 
     const dropZone = document.getElementById('drop-zone');
+    const previewWrapperEl = document.getElementById('preview-wrapper');
     const fileInput = document.getElementById('file-input');
 
     fileInput.addEventListener('change', (e) => {
@@ -494,29 +495,38 @@
       }
     });
 
-    ['dragover', 'dragenter'].forEach(type => {
-      dropZone.addEventListener(type, (e) => {
+    // ブラウザ全体でのデフォルトドラッグ動作（別タブで開く等）を完全防止
+    window.addEventListener('dragover', (e) => { e.preventDefault(); }, false);
+    window.addEventListener('drop', (e) => { e.preventDefault(); }, false);
+
+    // ドロップゾーンとプレビュー枠の両方でドロップ受付
+    [dropZone, previewWrapperEl].forEach(area => {
+      if (!area) return;
+      ['dragenter', 'dragover'].forEach(type => {
+        area.addEventListener(type, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropZone.classList.add('border-orange-500', 'bg-orange-500/10');
+        }, false);
+      });
+
+      ['dragleave', 'dragend'].forEach(type => {
+        area.addEventListener(type, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropZone.classList.remove('border-orange-500', 'bg-orange-500/10');
+        }, false);
+      });
+
+      area.addEventListener('drop', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        dropZone.classList.add('border-orange-500');
-      });
-    });
-
-    ['dragleave', 'dragend'].forEach(type => {
-      dropZone.addEventListener(type, (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.remove('border-orange-500');
-      });
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      dropZone.classList.remove('border-orange-500');
-      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleFile(e.dataTransfer.files[0]);
-      }
+        dropZone.classList.remove('border-orange-500', 'bg-orange-500/10');
+        const dt = e.dataTransfer;
+        if (dt && dt.files && dt.files.length > 0) {
+          handleFile(dt.files[0]);
+        }
+      }, false);
     });
 
     async function handleFile(file) {
@@ -629,6 +639,7 @@
 1. wallW: 全幅(mm)（例: "42,000" は 42000）
 2. wallH: 壁の最長・高さ(mm)（例: "5,700" は 5700）
 3. openings: 開口部リスト(label, leftX, width, height, bottomY, count)
+   - label: 必ず日本語で「開口1」「開口2」のように記述してください。
    - leftX: 壁全体の左端から各開口左端までの距離(mm)。柱幅や隣の開口幅を累積計算してください。
    - 地面に接しているシャッター・出入口は bottomY = 0 です。`;
 
@@ -724,15 +735,20 @@
       if (data.wallH) document.getElementById('input-wallH').value = data.wallH;
 
       if (data.openings && Array.isArray(data.openings) && data.openings.length > 0) {
-        openingsData = data.openings.map((op, idx) => ({
-          id: Date.now() + idx,
-          x: op.leftX || 0,
-          w: op.width || 0,
-          h: op.height || 0,
-          y: op.bottomY || 0,
-          count: op.count || 1,
-          label: op.label || `開口${idx + 1}`
-        }));
+        openingsData = data.openings.map((op, idx) => {
+          let label = op.label || `開口${idx + 1}`;
+          // 英語の opening1 や opening_1 を自動で日本語化
+          label = label.replace(/^opening[\s_\-]?(\d+)/i, '開口$1');
+          return {
+            id: Date.now() + idx,
+            x: op.leftX || 0,
+            w: op.width || 0,
+            h: op.height || 0,
+            y: op.bottomY || 0,
+            count: op.count || 1,
+            label: label
+          };
+        });
       }
       renderOpenings();
       calculate();
@@ -972,7 +988,16 @@
       const gross = document.getElementById('res-gross-area').textContent;
       const net = document.getElementById('res-net-area').textContent;
 
-      const text = `【図面材料計算結果】\n壁寸法: W ${W}mm × H ${H}mm (働幅: ${pitch}mm)\n総必要枚数: ${total}\n・最長部: ${full}\n・開口上: ${top}\n・開口間(中間): ${mid}\n・開口下: ${bot}\n面積:\n・全体面積: ${gross}\n・実外壁面積: ${net}`;
+      const text = `【図面材料計算結果】
+壁寸法: W ${W}mm × H ${H}mm (働幅: ${pitch}mm)
+総必要枚数: ${total}
+・最長部: ${full}
+・開口上: ${top}
+・開口間(中間): ${mid}
+・開口下: ${bot}
+面積:
+・全体面積: ${gross}
+・実外壁面積: ${net}`;
 
       const tempTextArea = document.createElement("textarea");
       tempTextArea.value = text;
@@ -1027,9 +1052,6 @@
     // Service Worker の登録
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').then((reg) => {
           reg.onupdatefound = () => {
             const installingWorker = reg.installing;
@@ -1052,9 +1074,6 @@
             window.location.reload();
           }
         });
-      });
-    }
-
       });
     }
 
