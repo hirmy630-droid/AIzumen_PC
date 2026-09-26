@@ -655,28 +655,28 @@
 
       openingsData.forEach((op, idx) => {
         const row = document.createElement('div');
-        row.className = 'flex items-center justify-between gap-1.5 bg-black/40 border border-zinc-800/80 rounded px-2 py-0.5 text-[12px]';
+        row.className = 'flex items-center justify-between gap-1.5 bg-black/40 border border-zinc-800/80 rounded px-2 py-1 text-xs sm:text-sm';
         row.innerHTML = `
-          <div class="text-zinc-200 font-semibold shrink-0 min-w-[80px] whitespace-nowrap text-[12px]" title="${escapeHtml(op.label)}">${escapeHtml(op.label)}</div>
+          <div class="text-zinc-200 font-semibold shrink-0 min-w-[76px] whitespace-nowrap text-xs sm:text-sm" title="${escapeHtml(op.label)}">${escapeHtml(op.label)}</div>
           <div class="flex items-center gap-1.5 flex-1 justify-end">
             <div class="flex items-center gap-0.5">
-              <span class="text-[12px] text-zinc-400 font-medium">X</span>
-              <input type="number" value="${op.x || 0}" class="w-12 sm:w-14 bg-zinc-900 border border-zinc-700 px-1 py-0.5 rounded text-white font-mono text-right text-[12px] focus:border-orange-500 outline-none" oninput="updateOpening(${idx}, 'x', this.value)" title="壁左端からの距離X(mm)">
+              <span class="text-xs text-zinc-400 font-medium">X</span>
+              <input type="number" inputmode="numeric" value="${op.x || 0}" class="w-14 sm:w-16 h-8 bg-zinc-900 border border-zinc-700 px-1 rounded text-white font-mono text-right focus:border-orange-500 outline-none" oninput="updateOpening(${idx}, 'x', this.value)" title="壁左端からの距離X(mm)">
             </div>
             <div class="flex items-center gap-0.5">
-              <span class="text-[12px] text-zinc-400 font-medium">W</span>
-              <input type="number" value="${op.w}" class="w-12 sm:w-14 bg-zinc-900 border border-zinc-700 px-1 py-0.5 rounded text-white font-mono text-right text-[12px] focus:border-orange-500 outline-none" oninput="updateOpening(${idx}, 'w', this.value)" title="開口幅(mm)">
+              <span class="text-xs text-zinc-400 font-medium">W</span>
+              <input type="number" inputmode="numeric" value="${op.w}" class="w-14 sm:w-16 h-8 bg-zinc-900 border border-zinc-700 px-1 rounded text-white font-mono text-right focus:border-orange-500 outline-none" oninput="updateOpening(${idx}, 'w', this.value)" title="開口幅(mm)">
             </div>
             <div class="flex items-center gap-0.5">
-              <span class="text-[12px] text-zinc-400 font-medium">H</span>
-              <input type="number" value="${op.h}" class="w-12 sm:w-14 bg-zinc-900 border border-zinc-700 px-1 py-0.5 rounded text-white font-mono text-right text-[12px] focus:border-orange-500 outline-none" oninput="updateOpening(${idx}, 'h', this.value)" title="開口高さ(mm)">
+              <span class="text-xs text-zinc-400 font-medium">H</span>
+              <input type="number" inputmode="numeric" value="${op.h}" class="w-14 sm:w-16 h-8 bg-zinc-900 border border-zinc-700 px-1 rounded text-white font-mono text-right focus:border-orange-500 outline-none" oninput="updateOpening(${idx}, 'h', this.value)" title="開口高さ(mm)">
             </div>
             <div class="flex items-center gap-0.5">
-              <span class="text-[12px] text-zinc-400 font-medium">下</span>
-              <input type="number" value="${op.y}" class="w-12 sm:w-14 bg-zinc-900 border border-zinc-700 px-1 py-0.5 rounded text-white font-mono text-right text-[12px] focus:border-orange-500 outline-none" oninput="updateOpening(${idx}, 'y', this.value)" title="地面からの下端高さ(mm)">
+              <span class="text-xs text-zinc-400 font-medium">下</span>
+              <input type="number" inputmode="numeric" value="${op.y}" class="w-14 sm:w-16 h-8 bg-zinc-900 border border-zinc-700 px-1 rounded text-white font-mono text-right focus:border-orange-500 outline-none" oninput="updateOpening(${idx}, 'y', this.value)" title="地面からの下端高さ(mm)">
             </div>
           </div>
-          <button type="button" onclick="removeOpeningRow(${idx})" class="text-zinc-500 hover:text-red-400 px-1 py-0.5 text-[12px] shrink-0 transition-colors ml-1" title="削除">✕</button>
+          <button type="button" onclick="removeOpeningRow(${idx})" class="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-red-400 active:bg-zinc-800 rounded text-sm shrink-0 transition-colors ml-0.5" title="削除">✕</button>
         `;
         container.appendChild(row);
       });
@@ -882,7 +882,16 @@
       const gross = document.getElementById('res-gross-area').textContent;
       const net = document.getElementById('res-net-area').textContent;
 
-      const text = `【図面材料計算結果】\n壁寸法: W ${W}mm × H ${H}mm (働幅: ${pitch}mm)\n総必要枚数: ${total}\n・最長部: ${full}\n・開口上: ${top}\n・開口間(中間): ${mid}\n・開口下: ${bot}\n面積:\n・全体面積: ${gross}\n・実外壁面積: ${net}`;
+      const text = `【図面材料計算結果】
+壁寸法: W ${W}mm × H ${H}mm (働幅: ${pitch}mm)
+総必要枚数: ${total}
+・最長部: ${full}
+・開口上: ${top}
+・開口間(中間): ${mid}
+・開口下: ${bot}
+面積:
+・全体面積: ${gross}
+・実外壁面積: ${net}`;
 
       const tempTextArea = document.createElement("textarea");
       tempTextArea.value = text;
