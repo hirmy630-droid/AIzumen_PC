@@ -12,8 +12,6 @@
   </script>
   <!-- html2canvas: 画面全体のスクリーンショット保存用 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icon-180.png">
   <meta name="theme-color" content="#09090b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -67,7 +65,7 @@
     }
   </style>
 </head>
-<body class="h-screen w-screen overflow-hidden flex flex-col">
+<body id="capture-target" class="h-screen w-screen overflow-hidden flex flex-col bg-black text-white">
 
   <!-- ヘッダー -->
   <header class="flex-none px-4 py-2 border-b border-zinc-800 flex justify-between items-center bg-zinc-950 z-20">
@@ -77,9 +75,14 @@
       <span class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono hidden sm:inline">iPad最適化</span>
     </div>
     <div class="flex items-center gap-2">
+      <button id="btn-api-key" onclick="openApiKeyModal()" class="text-xs px-2.5 py-1 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-orange-500 transition-colors flex items-center gap-1">
+        <span>🔑</span>
+        <span id="label-api-status">APIキー設定</span>
+      </button>
       <div class="text-xs font-bold text-zinc-400">KYOWA ROOF</div>
     </div>
   </header>
+
   <div class="flex-1 overflow-hidden flex flex-col md:flex-row p-2.5 gap-2.5">
 
     <!-- 左カラム: 図面アップロード & AI解析エリア (約40%) -->
@@ -139,11 +142,11 @@
         </div>
       </div>
 
-      <!-- 操作ボタン (iPadタッチターゲットh-10) -->
+      <!-- 操作ボタン -->
       <div class="flex flex-col sm:flex-row gap-1.5">
-        <button id="btn-screenshot" onclick="saveScreenshot()" class="flex-1 h-10 px-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1 text-center" title="画面全体の計算結果を画像(PNG)として保存">
+        <button id="btn-screenshot" type="button" onclick="saveScreenshot()" class="flex-1 h-10 px-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1 text-center" title="画面全体の計算結果を画像(PNG)として保存">
           <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-          <span>画面を画像保存</span>
+          <span id="btn-screenshot-text">画面を画像保存</span>
         </button>
         <button id="btn-analyze" onclick="analyzeCurrentDocument()" disabled class="flex-1 h-10 px-2 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 text-center">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
@@ -151,10 +154,6 @@
         </button>
       </div>
 
-      <div class="flex justify-between items-center px-1 text-[12px] text-zinc-400">
-        <span>手動で即時セット:</span>
-        <button type="button" onclick="loadYamatoSample()" class="text-orange-400 hover:text-orange-300 font-bold underline cursor-pointer">今回の図面(42m・4連)を即座に反映</button>
-      </div>
     </div>
 
     <!-- 右カラム: 読み取り数値 & 自動計算結果エリア (約60%) -->
@@ -278,7 +277,7 @@
         <input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-black border border-zinc-700 rounded px-2.5 py-2 text-white font-mono text-sm focus:border-orange-500 outline-none">
       </div>
       <div class="text-[11px] text-zinc-500">
-        ※キーはブラウザに安全に一時保持されます。無料キーは <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-orange-400 underline">Google AI Studio</a> から即座に取得できます。
+        ※キーはブラウザに安全に保持されます。無料キーは <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-orange-400 underline">Google AI Studio</a> から即座に取得できます。
       </div>
       <div class="flex gap-2 justify-end mt-1">
         <button onclick="clearApiKey()" class="px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded bg-zinc-800">クリア</button>
@@ -287,11 +286,36 @@
     </div>
   </div>
 
+  <!-- 画像保存フォールバック用モーダル（iPad/Safariで自動ダウンロードが制限された場合） -->
+  <div id="image-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md hidden z-50 flex items-center justify-center p-3">
+    <div class="bg-zinc-900 border border-zinc-700 rounded-xl max-w-lg w-full max-h-[95vh] p-3.5 flex flex-col gap-2 shadow-2xl">
+      <div class="flex items-center justify-between pb-1.5 border-b border-zinc-800">
+        <h3 class="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+          <span class="text-green-400">✓</span> スクリーンショット作成完了
+        </h3>
+        <button onclick="closeImageModal()" class="w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-white text-lg rounded-full hover:bg-zinc-800">✕</button>
+      </div>
+      <p class="text-[11px] text-zinc-300">
+        画像を長押しまたは右クリックして「<span class="text-orange-400 font-bold">写真に追加</span>」または「<span class="text-orange-400 font-bold">画像を保存</span>」を選択してください。
+      </p>
+      <div class="flex-1 overflow-auto bg-black/60 rounded-lg p-1 border border-zinc-800 flex items-center justify-center min-h-[160px] max-h-[60vh]">
+        <img id="screenshot-preview-img" class="max-w-full max-h-full object-contain rounded" alt="スクリーンショットプレビュー">
+      </div>
+      <div class="flex gap-2 justify-end pt-1">
+        <a id="btn-modal-download" download="材料計算結果.png" class="px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          直接ダウンロード再試行
+        </a>
+        <button onclick="closeImageModal()" class="px-4 py-1.5 text-xs font-semibold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded">閉じる</button>
+      </div>
+    </div>
+  </div>
+
   <!-- トースト通知 -->
-  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 bg-zinc-800 border border-zinc-600 text-white text-xs font-semibold px-4 py-2 rounded-full opacity-0 pointer-events-none transition-opacity duration-200 z-50 shadow-lg max-w-[90vw] text-center"></div>
+  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 bg-zinc-800/95 border border-zinc-600 text-white text-xs font-semibold px-4 py-2 rounded-full opacity-0 pointer-events-none transition-opacity duration-200 z-50 shadow-2xl max-w-[90vw] text-center"></div>
+
   <script>
     let currentBase64Image = null;
-    // localStorageから保存済みキーを読み込み
     let savedApiKey = localStorage.getItem('kyowa_gemini_api_key') || '';
 
     // ズーム・パン状態変数
@@ -463,27 +487,11 @@
       }
     }
 
-    // x: 壁左端からのX位置, w: 横幅, h: 高さ, y: 地面からの下端高さ
     let openingsData = [
       { id: 1, x: 2000, w: 3000, h: 3500, y: 0, count: 1, label: '下段開口(大)' },
       { id: 2, x: 3000, w: 1500, h: 2000, y: 7500, count: 1, label: '上段開口(窓)' },
       { id: 3, x: 7000, w: 2500, h: 3000, y: 2500, count: 1, label: '右側開口' }
     ];
-
-    // 今回の添付図面（クロネコヤマト：42000×5700、4連開口）の即時セット
-    function loadYamatoSample() {
-      document.getElementById('input-wallW').value = 42000;
-      document.getElementById('input-wallH').value = 5700;
-      openingsData = [
-        { id: 1, x: 800, w: 8500, h: 4100, y: 0, count: 1, label: '開口1(左)' },
-        { id: 2, x: 10300, w: 8500, h: 4100, y: 0, count: 1, label: '開口2' },
-        { id: 3, x: 19800, w: 8500, h: 4100, y: 0, count: 1, label: '開口3' },
-        { id: 4, x: 29300, w: 8500, h: 4100, y: 0, count: 1, label: '開口4(右)' }
-      ];
-      renderOpenings();
-      calculate();
-      showToast('今回の図面（42m・4連開口）の寸法を反映しました');
-    }
 
     const dropZone = document.getElementById('drop-zone');
     const previewWrapperEl = document.getElementById('preview-wrapper');
@@ -495,11 +503,9 @@
       }
     });
 
-    // ブラウザ全体でのデフォルトドラッグ動作（別タブで開く等）を完全防止
     window.addEventListener('dragover', (e) => { e.preventDefault(); }, false);
     window.addEventListener('drop', (e) => { e.preventDefault(); }, false);
 
-    // ドロップゾーンとプレビュー枠の両方でドロップ受付
     [dropZone, previewWrapperEl].forEach(area => {
       if (!area) return;
       ['dragenter', 'dragover'].forEach(type => {
@@ -630,7 +636,6 @@
       const overlay = document.getElementById('loading-overlay');
       overlay.classList.remove('hidden');
 
-      // プレビュー内では自動注入される空文字、ダウンロード先ではsavedApiKeyを使用
       const apiKey = savedApiKey || "";
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
@@ -688,7 +693,7 @@
           try {
             const res = await fetch(url, options);
             if (res.ok) return res;
-            if (res.status === 403 || res.status === 401) return res; // 認証エラーは即時終了
+            if (res.status === 403 || res.status === 401) return res;
             if (i === maxRetries - 1) return res;
           } catch (e) {
             if (i === maxRetries - 1) throw e;
@@ -707,7 +712,6 @@
 
         if (!response.ok) {
           if (response.status === 403 || response.status === 401) {
-            // ダウンロード先でのキー未設定エラー
             openApiKeyModal();
             throw new Error('APIキーが必要です。右上の「APIキー設定」から入力してください');
           }
@@ -737,7 +741,6 @@
       if (data.openings && Array.isArray(data.openings) && data.openings.length > 0) {
         openingsData = data.openings.map((op, idx) => {
           let label = op.label || `開口${idx + 1}`;
-          // 英語の opening1 や opening_1 を自動で日本語化
           label = label.replace(/^opening[\s_\-]?(\d+)/i, '開口$1');
           return {
             id: Date.now() + idx,
@@ -821,7 +824,6 @@
 
       if (Pitch <= 0 || W <= 0 || H <= 0) return;
 
-      // 1. 端寸計算（片張余り・芯割余り）
       const mod = W % Pitch;
       const endDim = (mod === 0) ? Pitch : Math.round(mod);
       const centerDim = (mod === 0) ? Pitch : Math.round((mod + Pitch) / 2);
@@ -831,10 +833,8 @@
       const elCenterDim = document.getElementById('disp-center-dim');
       if (elCenterDim) elCenterDim.innerHTML = `${centerDim}<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span>`;
 
-      // 2. 総枚数
       const totalSheets = Math.ceil(W / Pitch);
 
-      // 開口部面積の計算
       let totalOpM2Raw = 0;
       openingsData.forEach(op => {
         if (op.w > 0 && op.h > 0) {
@@ -999,34 +999,73 @@
 ・全体面積: ${gross}
 ・実外壁面積: ${net}`;
 
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast('計算結果をクリップボードにコピーしました');
+        }).catch(() => fallbackCopy(text));
+      } else {
+        fallbackCopy(text);
+      }
+    }
+
+    function fallbackCopy(text) {
       const tempTextArea = document.createElement("textarea");
       tempTextArea.value = text;
       document.body.appendChild(tempTextArea);
       tempTextArea.select();
       document.execCommand('copy');
       document.body.removeChild(tempTextArea);
-
       showToast('計算結果をコピーしました');
     }
 
+    /**
+     * 高精度スクリーンショット保存関数
+     * iPad Safari / iOS / PC / Android 全対応
+     */
     async function saveScreenshot() {
+      const btn = document.getElementById('btn-screenshot');
+      const btnText = document.getElementById('btn-screenshot-text');
+      const originalText = btnText ? btnText.textContent : '画面を画像保存';
+
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.textContent = '生成中...';
       showToast('スクリーンショットを作成中...');
+
+      const prevScale = zoomScale;
+      const prevPanX = panX;
+      const prevPanY = panY;
+
       try {
+        // トーストを一時的に非表示にしてキャプチャに写り込まないようにする
         const toast = document.getElementById('toast');
-        toast.style.opacity = '0';
-        
-        const prevScale = zoomScale;
-        const prevPanX = panX;
-        const prevPanY = panY;
+        if (toast) toast.style.opacity = '0';
+
+        // ズームを一時的に標準に戻して鮮明にキャプチャ
         resetZoom();
 
-        const canvas = await html2canvas(document.body, {
+        // DOMの再描画を待機
+        await new Promise(r => setTimeout(r, 120));
+
+        const targetEl = document.getElementById('capture-target') || document.body;
+
+        // html2canvas の高画質キャプチャ設定
+        const canvas = await html2canvas(targetEl, {
           backgroundColor: '#000000',
-          scale: 2,
+          scale: Math.min(window.devicePixelRatio || 2, 2.5),
           useCORS: true,
-          logging: false
+          allowTaint: true,
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: document.documentElement.clientWidth,
+          windowHeight: document.documentElement.clientHeight,
+          ignoreElements: (element) => {
+            // トーストやモーダル類は除外
+            return element.id === 'toast' || element.id === 'api-modal' || element.id === 'image-modal';
+          }
         });
 
+        // ズーム位置を元に戻す
         zoomScale = prevScale;
         panX = prevPanX;
         panY = prevPanY;
@@ -1037,19 +1076,122 @@
         const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
         const fileName = `材料計算結果_${timestamp}.png`;
 
+        // Canvas を Blob 化
+        const blob = await new Promise((resolve) => {
+          canvas.toBlob((b) => resolve(b), 'image/png', 0.95);
+        });
+
+        if (!blob) {
+          throw new Error('画像の生成に失敗しました');
+        }
+
+        const dataUrl = canvas.toDataURL('image/png');
+
+        // iPad / iPhone 等で Web Share API が利用可能な場合
+        // 直接写真アプリに保存したり AirDrop やメールに共有可能
+        const file = new File([blob], fileName, { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: '材料計算結果',
+              text: '図面AI自動読取＆材料計算結果のスクリーンショットです。'
+            });
+            showToast('画像を保存・共有しました');
+            return;
+          } catch (shareErr) {
+            // ユーザーが共有ダイアログをキャンセルした場合はスルー
+            if (shareErr.name === 'AbortError') {
+              showToast('キャンセルされました');
+              return;
+            }
+            console.warn('Web Share失敗、ダウンロードにフォールバック:', shareErr);
+          }
+        }
+
+        // PC / Android / 通常ダウンロード試行 (Blob URL)
+        const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.download = fileName;
-        link.href = canvas.toDataURL('image/png');
+        link.href = blobUrl;
+        document.body.appendChild(link);
         link.click();
 
-        showToast('画像(PNG)をダウンロード保存しました');
+        // 後片付け
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+        }, 1500);
+
+        showToast('画像(PNG)の保存を開始しました');
+
       } catch (err) {
         console.error('スクリーンショット保存エラー:', err);
-        showToast('スクリーンショットの保存に失敗しました');
+
+        // 失敗時またはiPad Safariでブロックされた場合のフォールバック:
+        // モーダルを表示して画像を長押し保存できるようにする
+        try {
+          const targetEl = document.getElementById('capture-target') || document.body;
+          const canvas = await html2canvas(targetEl, {
+            backgroundColor: '#000000',
+            scale: 1.5,
+            useCORS: true
+          });
+          openImageModal(canvas.toDataURL('image/png'));
+          showToast('画像を表示しました。長押しで保存できます');
+        } catch (innerErr) {
+          showToast(`保存に失敗しました: ${err.message || 'ブラウザのセキュリティ設定を確認してください'}`);
+        }
+      } finally {
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = originalText;
+        zoomScale = prevScale;
+        panX = prevPanX;
+        panY = prevPanY;
+        updateTransform();
       }
     }
 
-    // Service Worker の登録
+    function openImageModal(imgSrc) {
+      const modal = document.getElementById('image-modal');
+      const img = document.getElementById('screenshot-preview-img');
+      const dlBtn = document.getElementById('btn-modal-download');
+      if (img) img.src = imgSrc;
+      if (dlBtn) dlBtn.href = imgSrc;
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeImageModal() {
+      const modal = document.getElementById('image-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => { 
+        toast.style.opacity = '0'; 
+      }, 3500);
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[tag] || tag));
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderOpenings();
+      calculate();
+      updateTransform();
+      updateApiKeyUI();
+    });
+  </script>
+<script>
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').then((reg) => {
@@ -1077,25 +1219,6 @@
       });
     }
 
-    function showToast(msg) {
-      const toast = document.getElementById('toast');
-      toast.textContent = msg;
-      toast.style.opacity = '1';
-      setTimeout(() => { toast.style.opacity = '0'; }, 3000);
-    }
-
-    function escapeHtml(str) {
-      return (str || '').replace(/[&<>'"]/g, tag => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-      }[tag] || tag));
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      renderOpenings();
-      calculate();
-      updateTransform();
-      updateApiKeyUI();
-    });
-  </script>
+</script>
 </body>
 </html>
