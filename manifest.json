@@ -1,29 +1,21 @@
 {
-  "name": "図面AI自動読取＆材料計算 - KYOWA ROOF",
+  "name": "KYOWA ROOF 図面AI材料計算",
   "short_name": "KYOWA ROOF",
-  "description": "建築立面図・板金材料取りAI自動計算アプリケーション",
+  "description": "建築図面AI自動読取＆板金材料スライス計算システム",
   "start_url": "./index.html",
   "display": "standalone",
-  "orientation": "any",
   "background_color": "#000000",
   "theme_color": "#09090b",
   "icons": [
     {
-      "src": "icon-180.png",
-      "sizes": "180x180",
-      "type": "image/png"
-    },
-    {
       "src": "icon-192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "icon-512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     }
   ]
 }
