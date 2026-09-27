@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kyowa-roof-cache-v1790459626696';
+const CACHE_NAME = 'kyowa-roof-cache-20260927-01';
 const ASSETS = [
   './',
   './index.html',

@@ -13,7 +13,8 @@
   <!-- html2canvas: 画面全体のスクリーンショット保存用 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <meta name="theme-color" content="#09090b">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="./manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
     :root {
@@ -159,16 +160,32 @@
 
     <!-- 右カラム: 読み取り数値 & 自動計算結果エリア (50%) -->
     <div class="flex-1 md:w-1/2 flex flex-col gap-2 min-h-0 bg-[#111113] border border-zinc-800 rounded-xl p-2.5 overflow-y-auto custom-scrollbar">
-      <!-- 端寸ステータス表示（片張余り・芯割余り） -->
-      <div class="grid grid-cols-2 gap-1.5">
-        <div class="bg-zinc-900 border border-sky-500/60 rounded-lg p-2 flex justify-between items-center">
-          <span class="text-xs font-bold text-sky-400">片張余り</span>
-          <div class="text-[20px] font-extrabold font-mono text-white" id="disp-end-dim">0<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span></div>
+
+      <!-- 【一番上】面積サマリーカード（全体面積・実面積・開口合計） -->
+      <div class="grid grid-cols-3 gap-1.5">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-1.5 flex flex-col justify-between">
+          <span class="text-[12px] font-bold text-zinc-400">全体面積</span>
+          <div class="text-base font-extrabold font-mono text-white mt-0.5" id="res-gross-area">0.00<span class="text-[12px] text-zinc-400 font-normal">㎡</span></div>
         </div>
-        <div class="bg-zinc-900 border border-green-500/60 rounded-lg p-2 flex justify-between items-center">
-          <span class="text-xs font-bold text-green-400">芯割余り</span>
-          <div class="text-[20px] font-extrabold font-mono text-white" id="disp-center-dim">0<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span></div>
+        <div class="bg-zinc-900 border border-sky-500/50 rounded-lg p-1.5 flex flex-col justify-between">
+          <span class="text-[12px] font-bold text-sky-400">実面積 (外壁)</span>
+          <div class="text-base font-extrabold font-mono text-sky-400 mt-0.5" id="res-net-area">0.00<span class="text-[12px] text-zinc-400 font-normal">㎡</span></div>
         </div>
+        <div class="bg-zinc-900 border border-green-500/50 rounded-lg p-1.5 flex flex-col justify-between">
+          <span class="text-[12px] font-bold text-green-400">開口合計</span>
+          <div class="text-base font-extrabold font-mono text-green-400 mt-0.5" id="res-op-area">0.00<span class="text-[12px] text-zinc-400 font-normal">㎡</span></div>
+        </div>
+      </div>
+
+      <!-- 不足情報・入力エラー警告通知バナー（エラー時のみ自動表示） -->
+      <div id="validation-alert" class="hidden bg-red-950/80 border-2 border-red-500/90 rounded-lg p-2.5 text-xs text-red-200 flex flex-col gap-1.5 animate-pulse">
+        <div class="flex items-center gap-1.5 font-bold text-red-400 text-sm">
+          <svg class="w-4 h-4 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+          <span>寸法情報が不足しているため、計算を中断しています</span>
+        </div>
+        <ul id="validation-errors" class="list-disc list-inside space-y-0.5 text-[12px] font-medium text-red-300 pl-1">
+          <!-- 不足内容が動的に挿入されます -->
+        </ul>
       </div>
 
       <!-- 入力・抽出数値確認カード -->
@@ -236,19 +253,15 @@
         </div>
       </div>
 
-      <!-- 面積サマリーカード -->
-      <div class="grid grid-cols-3 gap-1.5">
-        <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-1.5 flex flex-col justify-between">
-          <span class="text-[12px] font-bold text-zinc-400">全体面積</span>
-          <div class="text-base font-extrabold font-mono text-white mt-0.5" id="res-gross-area">0.00<span class="text-[12px] text-zinc-400 font-normal">㎡</span></div>
+      <!-- 【一番下】端寸ステータス表示（片張余り・芯割余り） -->
+      <div class="grid grid-cols-2 gap-1.5">
+        <div class="bg-zinc-900 border border-sky-500/60 rounded-lg p-2 flex justify-between items-center">
+          <span class="text-xs font-bold text-sky-400">片張余り</span>
+          <div class="text-[20px] font-extrabold font-mono text-white" id="disp-end-dim">0<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span></div>
         </div>
-        <div class="bg-zinc-900 border border-sky-500/50 rounded-lg p-1.5 flex flex-col justify-between">
-          <span class="text-[12px] font-bold text-sky-400">実面積 (外壁)</span>
-          <div class="text-base font-extrabold font-mono text-sky-400 mt-0.5" id="res-net-area">0.00<span class="text-[12px] text-zinc-400 font-normal">㎡</span></div>
-        </div>
-        <div class="bg-zinc-900 border border-green-500/50 rounded-lg p-1.5 flex flex-col justify-between">
-          <span class="text-[12px] font-bold text-green-400">開口合計</span>
-          <div class="text-base font-extrabold font-mono text-green-400 mt-0.5" id="res-op-area">0.00<span class="text-[12px] text-zinc-400 font-normal">㎡</span></div>
+        <div class="bg-zinc-900 border border-green-500/60 rounded-lg p-2 flex justify-between items-center">
+          <span class="text-xs font-bold text-green-400">芯割余り</span>
+          <div class="text-[20px] font-extrabold font-mono text-white" id="disp-center-dim">0<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span></div>
         </div>
       </div>
 
@@ -318,6 +331,21 @@
   <script>
     let currentBase64Image = null;
     let savedApiKey = localStorage.getItem('kyowa_gemini_api_key') || '';
+
+    // 入力欄タップ・フォーカス時に即座に全選択する設定（iOS/iPadOS/Mac Safari完全対応）
+    document.addEventListener('focusin', (e) => {
+      if (e.target && e.target.tagName === 'INPUT' && (e.target.type === 'number' || e.target.type === 'text' || e.target.type === 'password')) {
+        e.target.select();
+        setTimeout(() => {
+          try {
+            e.target.select();
+            if (e.target.setSelectionRange) {
+              e.target.setSelectionRange(0, 9999);
+            }
+          } catch (_) {}
+        }, 50);
+      }
+    });
 
     // ズーム・パン状態変数
     let zoomScale = 1.0;
@@ -820,13 +848,75 @@
       calculate();
     }
 
+    function validateInputs(Pitch, W, H, openings) {
+      const errors = [];
+
+      // 1. 基本寸法の検証
+      if (!W || W <= 0) {
+        errors.push('【全幅 (W)】が未入力または 0 です。壁全体の横幅(mm)を入力してください。');
+      }
+      if (!H || H <= 0) {
+        errors.push('【最長 (H)】が未入力または 0 です。壁全体の最高高さ(mm)を入力してください。');
+      }
+      if (!Pitch || Pitch <= 0) {
+        errors.push('【働幅】が未入力または 0 です。成形板の働幅(例: 500mm)を入力してください。');
+      }
+
+      // 2. 開口寸法・配置の検証
+      openings.forEach((op, i) => {
+        const name = op.label || `開口${i + 1}`;
+        if (!op.w || op.w <= 0) {
+          errors.push(`【${name}】の幅 (W) が未入力または 0 です。`);
+        }
+        if (!op.h || op.h <= 0) {
+          errors.push(`【${name}】の高さ (H) が未入力または 0 です。`);
+        }
+
+        // 壁からはみ出していないかのチェック（W, Hが正常に入力されている場合）
+        if (W > 0 && (op.x + op.w) > W) {
+          errors.push(`【${name}】の位置が壁の右端を超えています。(X: ${op.x} + 幅: ${op.w} = ${op.x + op.w}mm > 全幅: ${W}mm)`);
+        }
+        if (H > 0 && (op.y + op.h) > H) {
+          errors.push(`【${name}】の位置が壁の上端を突き抜けています。(下端: ${op.y} + 高さ: ${op.h} = ${op.y + op.h}mm > 最長: ${H}mm)`);
+        }
+      });
+
+      return errors;
+    }
+
+    function resetOutputDisplays(msg = '未確定') {
+      document.getElementById('res-total-sheets').textContent = msg;
+      document.getElementById('res-full-info').textContent = '---';
+      document.getElementById('res-top-info').textContent = '---';
+      document.getElementById('res-mid-info').textContent = '---';
+      document.getElementById('res-bot-info').textContent = '---';
+      document.getElementById('res-gross-area').innerHTML = `0.00<span class="text-[12px] text-zinc-400 font-normal">㎡</span>`;
+      document.getElementById('res-net-area').innerHTML = `0.00<span class="text-[12px] text-zinc-400 font-normal">㎡</span>`;
+      document.getElementById('res-op-area').innerHTML = `0.00<span class="text-[12px] text-zinc-400 font-normal">㎡</span>`;
+      document.getElementById('disp-end-dim').innerHTML = `0<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span>`;
+      document.getElementById('disp-center-dim').innerHTML = `0<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span>`;
+    }
+
     function calculate() {
-      const Pitch = parseFloat(document.getElementById('input-pitch').value) || 500;
+      const Pitch = parseFloat(document.getElementById('input-pitch').value) || 0;
       const W = parseFloat(document.getElementById('input-wallW').value) || 0;
       const H = parseFloat(document.getElementById('input-wallH').value) || 0;
       const enableLongestPriority = document.getElementById('chk-round-rule')?.checked ?? true;
 
-      if (Pitch <= 0 || W <= 0 || H <= 0) return;
+      // 入力寸法の整合性チェック（情報不足時の無理な計算を阻止）
+      const validationErrors = validateInputs(Pitch, W, H, openingsData);
+      const alertBox = document.getElementById('validation-alert');
+      const errorList = document.getElementById('validation-errors');
+
+      if (validationErrors.length > 0) {
+        errorList.innerHTML = validationErrors.map(err => `<li>${escapeHtml(err)}</li>`).join('');
+        alertBox.classList.remove('hidden');
+        resetOutputDisplays('入力エラー');
+        return; // ★無理やり計算せずに即座に停止
+      }
+
+      // エラーが解消されたら警告バナーを隠す
+      alertBox.classList.add('hidden');
 
       const mod = W % Pitch;
       const endDim = (mod === 0) ? Pitch : Math.round(mod);
@@ -981,6 +1071,12 @@
     }
 
     function copyResults() {
+      const alertBox = document.getElementById('validation-alert');
+      if (alertBox && !alertBox.classList.contains('hidden')) {
+        showToast('入力内容に不備があるため、コピーできません。赤字の警告を確認してください');
+        return;
+      }
+
       const W = document.getElementById('input-wallW').value;
       const H = document.getElementById('input-wallH').value;
       const pitch = document.getElementById('input-pitch').value;
@@ -1172,5 +1268,15 @@
       updateApiKeyUI();
     });
   </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js', { scope: './' })
+          .catch(err => console.error('Service Worker registration failed:', err));
+      });
+    }
+  </script>
+
 </body>
 </html>
