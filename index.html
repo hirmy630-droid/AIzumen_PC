@@ -10,11 +10,13 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   </script>
+  <!-- Cropper.js: iPad・PC完全対応の画像切り抜きライブラリ -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
   <!-- html2canvas: 画面全体のスクリーンショット保存用 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <meta name="theme-color" content="#09090b">
-    <link rel="manifest" href="./manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
     :root {
@@ -64,7 +66,25 @@
     .drag-canvas:active {
       cursor: grabbing;
     }
+    /* 画像の滲み防止レンダリング */
+    #image-preview, #pdf-canvas, #crop-source-img {
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+    /* Cropper.jsのダークテーマ調整 */
+    .cropper-view-box {
+      outline: 2px solid #f97316;
+      outline-color: rgba(249, 115, 22, 0.85);
+    }
+    .cropper-line, .cropper-point {
+      background-color: #f97316;
+    }
+    .cropper-point.point-se {
+      width: 12px;
+      height: 12px;
+    }
   </style>
+  <link rel="manifest" href="./manifest.json">
 </head>
 <body id="capture-target" class="h-screen w-screen overflow-hidden flex flex-col bg-black text-white">
 
@@ -73,7 +93,7 @@
     <div class="flex items-center gap-2">
       <span class="inline-block w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
       <h1 class="text-base font-bold tracking-wide">図面AI自動読取 & 材料計算</h1>
-      <span class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono hidden sm:inline">iPad最適化</span>
+      <span class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono hidden sm:inline">高精細ロスレス対応</span>
     </div>
     <div class="flex items-center gap-2">
       <button id="btn-api-key" onclick="openApiKeyModal()" class="text-xs px-2.5 py-1 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-orange-500 transition-colors flex items-center gap-1">
@@ -94,18 +114,21 @@
           <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
           図面アップロード
         </h2>
-        <span class="text-xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">Gemini AI</span>
+        <div class="flex items-center gap-1.5">
+          <span id="badge-cropped" class="hidden text-[11px] px-1.5 py-0.5 rounded bg-orange-950 text-orange-400 border border-orange-700 font-semibold">切り抜き表示中</span>
+          <span class="text-xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">Gemini AI</span>
+        </div>
       </div>
 
       <!-- ドロップゾーン -->
-      <div id="drop-zone" onclick="document.getElementById('file-input').click()" class="border-2 border-dashed border-zinc-700 hover:border-orange-500 rounded-lg p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-zinc-900/60 relative group">
+      <div id="drop-zone" onclick="document.getElementById('file-input').click()" class="border-2 border-dashed border-zinc-700 hover:border-orange-500 rounded-lg p-2 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-zinc-900/60 relative group">
         <input type="file" id="file-input" accept="application/pdf,image/*" class="hidden">
-        <div id="drop-prompt" class="flex flex-col items-center gap-1 pointer-events-none">
-          <div class="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-orange-400 group-hover:scale-110 transition-transform">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+        <div id="drop-prompt" class="flex flex-col items-center gap-0.5 pointer-events-none">
+          <div class="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center text-orange-400 group-hover:scale-110 transition-transform">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
           </div>
-          <p class="text-xs font-semibold text-zinc-200">PDF / 画像ファイルをドロップ</p>
-          <p class="text-[12px] text-zinc-500">クリックして選択 / 写真撮影（GoodNotes図面は画像推奨）</p>
+          <p class="text-xs font-semibold text-zinc-200">PDF / 画像ファイルをドロップ (原寸最高画質で読み込みます)</p>
+          <p class="text-[11px] text-zinc-500">クリックして選択 / 写真撮影（GoodNotes図面・PNG・JPEG対応）</p>
         </div>
         <div id="file-info" class="hidden text-xs text-orange-400 font-medium pointer-events-none"></div>
       </div>
@@ -133,27 +156,40 @@
 
         <div id="preview-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 text-xs gap-1 text-center px-2 pointer-events-none">
           <svg class="w-6 h-6 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-          図面アップロード後にプレビュー表示
+          図面アップロード後に最高画質でプレビュー表示
         </div>
 
         <!-- AI解析中ローディングオーバーレイ -->
         <div id="loading-overlay" class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center gap-2 hidden z-40">
           <div class="w-7 h-7 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-          <p class="text-xs sm:text-sm font-semibold text-zinc-200" id="loading-title">Gemini AI が図面を高精細解析中...</p>
+          <p class="text-xs sm:text-sm font-semibold text-zinc-200" id="loading-title">Gemini AI が原寸高精細で図面を解析中...</p>
           <p class="text-[12px] text-zinc-400" id="loading-desc">全幅・最長・各開口寸法を読取中</p>
         </div>
       </div>
 
-      <!-- 操作ボタン -->
-      <div class="flex flex-col sm:flex-row gap-1.5">
-        <button id="btn-screenshot" type="button" onclick="saveScreenshot()" class="flex-1 h-10 px-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1 text-center" title="画面全体の計算結果を画像(PNG)として保存">
-          <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-          <span id="btn-screenshot-text">画面を画像保存</span>
-        </button>
-        <button id="btn-analyze" onclick="analyzeCurrentDocument()" disabled class="flex-1 h-10 px-2 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 text-center">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-          <span>AI自動読取</span>
-        </button>
+      <!-- 操作ボタン群 -->
+      <div class="flex flex-col gap-1.5">
+        <div class="flex gap-1.5">
+          <button id="btn-open-crop" type="button" onclick="openCropModal()" disabled class="flex-1 h-9 px-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 disabled:bg-zinc-900 disabled:text-zinc-600 text-orange-400 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5" title="図面の一部を四角く囲んで最高解像度のまま切り抜きます">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"></path></svg>
+            <span>✂ 範囲を切り抜く (トリミング)</span>
+          </button>
+          <button id="btn-reset-crop" type="button" onclick="resetToOriginalImage()" class="hidden h-9 px-3 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-300 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1" title="切り抜く前の全体図面に戻します">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            <span>元の図面に戻す</span>
+          </button>
+        </div>
+
+        <div class="flex gap-1.5">
+          <button id="btn-screenshot" type="button" onclick="saveScreenshot()" class="flex-1 h-10 px-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1 text-center" title="画面全体の計算結果を画像(PNG)として保存">
+            <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            <span id="btn-screenshot-text">画面を画像保存</span>
+          </button>
+          <button id="btn-analyze" onclick="analyzeCurrentDocument()" disabled class="flex-1 h-10 px-2 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 text-center">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            <span>AI自動読取</span>
+          </button>
+        </div>
       </div>
 
     </div>
@@ -161,7 +197,7 @@
     <!-- 右カラム: 読み取り数値 & 自動計算結果エリア (50%) -->
     <div class="flex-1 md:w-1/2 flex flex-col gap-2 min-h-0 bg-[#111113] border border-zinc-800 rounded-xl p-2.5 overflow-y-auto custom-scrollbar">
 
-      <!-- 【一番上】面積サマリーカード（全体面積・実面積・開口合計） -->
+      <!-- 【一番上】面積サマリーカード -->
       <div class="grid grid-cols-3 gap-1.5">
         <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-1.5 flex flex-col justify-between">
           <span class="text-[12px] font-bold text-zinc-400">全体面積</span>
@@ -177,15 +213,13 @@
         </div>
       </div>
 
-      <!-- 不足情報・入力エラー警告通知バナー（エラー時のみ自動表示） -->
+      <!-- 不足情報・入力エラー警告通知バナー -->
       <div id="validation-alert" class="hidden bg-red-950/80 border-2 border-red-500/90 rounded-lg p-2.5 text-xs text-red-200 flex flex-col gap-1.5 animate-pulse">
         <div class="flex items-center gap-1.5 font-bold text-red-400 text-sm">
           <svg class="w-4 h-4 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
           <span>寸法情報が不足しているため、計算を中断しています</span>
         </div>
-        <ul id="validation-errors" class="list-disc list-inside space-y-0.5 text-[12px] font-medium text-red-300 pl-1">
-          <!-- 不足内容が動的に挿入されます -->
-        </ul>
+        <ul id="validation-errors" class="list-disc list-inside space-y-0.5 text-[12px] font-medium text-red-300 pl-1"></ul>
       </div>
 
       <!-- 入力・抽出数値確認カード -->
@@ -197,7 +231,6 @@
           </span>
         </div>
 
-        <!-- 開口端数処理オプション設定 -->
         <div class="flex items-center justify-between bg-black/40 border border-zinc-800 px-2 py-1 rounded text-xs">
           <div class="flex items-center gap-1.5">
             <input type="checkbox" id="chk-round-rule" checked onchange="calculate()" class="w-4 h-4 accent-orange-500 rounded cursor-pointer">
@@ -223,9 +256,7 @@
             <span>開口部リスト (<span id="opening-count">0</span>箇所)</span>
             <button type="button" onclick="addOpeningRow()" class="text-orange-400 hover:text-orange-300 text-xs font-bold py-1 px-1">+ 開口を追加</button>
           </div>
-          <div id="openings-container" class="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar pr-0.5">
-            <!-- 開口部行が動的追加されます -->
-          </div>
+          <div id="openings-container" class="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar pr-0.5"></div>
         </div>
       </div>
 
@@ -274,6 +305,34 @@
     </div>
   </div>
 
+  <!-- 画像トリミング（範囲切り抜き）専用モーダル -->
+  <div id="crop-modal" class="fixed inset-0 bg-black/95 backdrop-blur-md hidden z-50 flex flex-col p-2 sm:p-4">
+    <div class="flex-none flex items-center justify-between pb-2 border-b border-zinc-800 px-2">
+      <div class="flex items-center gap-2">
+        <span class="text-orange-500 font-bold text-base">✂</span>
+        <h3 class="text-sm font-bold text-white">読取範囲の切り抜き (最高画質のままトリミング)</h3>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="button" onclick="closeCropModal()" class="px-3 py-1.5 text-xs text-zinc-300 hover:text-white bg-zinc-800 rounded">キャンセル</button>
+        <button type="button" onclick="applyCrop()" class="px-4 py-1.5 text-xs font-bold text-white bg-orange-600 hover:bg-orange-500 rounded flex items-center gap-1">
+          <span>✓</span> この範囲で決定
+        </button>
+      </div>
+    </div>
+    
+    <div class="text-[11px] text-zinc-400 px-2 pt-1 flex justify-between items-center flex-none">
+      <span>枠の四隅や辺を指で引っ張ってサイズを調整できます（原寸ピクセルを維持して切り抜きます）</span>
+      <div class="flex gap-1">
+        <button type="button" onclick="cropperReset()" class="px-2 py-0.5 bg-zinc-800 text-[11px] text-zinc-300 rounded hover:text-white">枠を全開に</button>
+      </div>
+    </div>
+
+    <!-- 切り抜き作業エリア -->
+    <div class="flex-1 min-h-0 bg-black/90 rounded-lg border border-zinc-800 mt-2 relative overflow-hidden flex items-center justify-center p-2">
+      <img id="crop-source-img" class="max-h-full max-w-full block" alt="トリミング対象">
+    </div>
+  </div>
+
   <!-- APIキー設定モーダル -->
   <div id="api-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
     <div class="bg-zinc-900 border border-zinc-700 rounded-xl max-w-md w-full p-4 flex flex-col gap-3 shadow-2xl">
@@ -284,14 +343,14 @@
         <button onclick="closeApiKeyModal()" class="text-zinc-400 hover:text-white text-lg leading-none">✕</button>
       </div>
       <p class="text-xs text-zinc-300 leading-relaxed">
-        ダウンロードしたファイルやGitHub Pages、iPadのSafariでAI自動読取を行うには、Google AI Studioで取得した無料のAPIキーが必要です。
+        Google AI Studioで取得した無料のAPIキーを入力してください。
       </p>
       <div class="flex flex-col gap-1">
         <label class="text-[12px] font-semibold text-zinc-400">Gemini APIキー (AIzaSy...)</label>
         <input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-black border border-zinc-700 rounded px-2.5 py-2 text-white font-mono text-sm focus:border-orange-500 outline-none">
       </div>
       <div class="text-[11px] text-zinc-500">
-        ※キーはブラウザに安全に保持されます。無料キーは <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-orange-400 underline">Google AI Studio</a> から即座に取得できます。
+        ※キーはブラウザに安全に保持されます。<a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-orange-400 underline">Google AI Studio</a> から取得できます。
       </div>
       <div class="flex gap-2 justify-end mt-1">
         <button onclick="clearApiKey()" class="px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded bg-zinc-800">クリア</button>
@@ -330,9 +389,13 @@
 
   <script>
     let currentBase64Image = null;
+    let currentImageMimeType = 'image/png';
+    let originalBase64Image = null; // トリミング前の元データを100%保持
+    let originalImageMimeType = 'image/png';
     let savedApiKey = localStorage.getItem('kyowa_gemini_api_key') || '';
+    let cropperInstance = null;
 
-    // 入力欄タップ・フォーカス時に即座に全選択する設定（iOS/iPadOS/Mac Safari完全対応）
+    // 入力欄タップ・フォーカス時に即座に全選択する設定（iOS Safari自動ズーム・誤解除防止）
     document.addEventListener('focusin', (e) => {
       if (e.target && e.target.tagName === 'INPUT' && (e.target.type === 'number' || e.target.type === 'text' || e.target.type === 'password')) {
         e.target.select();
@@ -420,7 +483,7 @@
       resetZoom();
     });
 
-    // タッチデバイス（iPad・スマホ）対応: 1本指移動 / 2本指ピンチズーム
+    // タッチデバイス（iPad・iPhone）対応
     previewWrapper.addEventListener('touchstart', (e) => {
       if (e.target.closest('#zoom-controls')) return;
       if (e.touches.length === 1) {
@@ -466,6 +529,108 @@
       }
     });
 
+    // ==========================================
+    // トリミング（原寸高解像度切り抜き）機能
+    // ==========================================
+    function openCropModal() {
+      if (!currentBase64Image) {
+        showToast('先に図面をアップロードしてください');
+        return;
+      }
+
+      const modal = document.getElementById('crop-modal');
+      const cropImg = document.getElementById('crop-source-img');
+
+      cropImg.src = `data:${currentImageMimeType};base64,${currentBase64Image}`;
+      modal.classList.remove('hidden');
+
+      if (cropperInstance) {
+        cropperInstance.destroy();
+        cropperInstance = null;
+      }
+
+      setTimeout(() => {
+        cropperInstance = new Cropper(cropImg, {
+          viewMode: 1,
+          dragMode: 'move',
+          autoCropArea: 0.85,
+          restore: false,
+          guides: true,
+          center: true,
+          highlight: true,
+          cropBoxMovable: true,
+          cropBoxResizable: true,
+          toggleDragModeOnDblclick: false,
+        });
+      }, 100);
+    }
+
+    function closeCropModal() {
+      const modal = document.getElementById('crop-modal');
+      modal.classList.add('hidden');
+      if (cropperInstance) {
+        cropperInstance.destroy();
+        cropperInstance = null;
+      }
+    }
+
+    function cropperReset() {
+      if (cropperInstance) {
+        cropperInstance.reset();
+      }
+    }
+
+    function applyCrop() {
+      if (!cropperInstance) return;
+
+      // 元画像の「実解像度・実ピクセルそのまま」で切り抜く（縮小させない）
+      const croppedCanvas = cropperInstance.getCroppedCanvas({
+        imageSmoothingEnabled: false // 文字や線のエッジをぼかさずそのまま抽出
+      });
+
+      if (!croppedCanvas) {
+        showToast('切り抜き範囲の取得に失敗しました');
+        return;
+      }
+
+      // 可逆圧縮のPNGで完全無劣化保存
+      const croppedDataUrl = croppedCanvas.toDataURL('image/png');
+      currentBase64Image = croppedDataUrl.split(',')[1];
+      currentImageMimeType = 'image/png';
+
+      const imgPreview = document.getElementById('image-preview');
+      imgPreview.src = croppedDataUrl;
+      imgPreview.classList.remove('hidden');
+      document.getElementById('pdf-canvas').classList.add('hidden');
+      document.getElementById('preview-placeholder').classList.add('hidden');
+
+      document.getElementById('badge-cropped').classList.remove('hidden');
+      document.getElementById('btn-reset-crop').classList.remove('hidden');
+
+      closeCropModal();
+      resetZoom();
+      showToast('指定範囲を高精細のまま切り抜きました！このまま「AI自動読取」を押してください');
+    }
+
+    function resetToOriginalImage() {
+      if (!originalBase64Image) return;
+
+      currentBase64Image = originalBase64Image;
+      currentImageMimeType = originalImageMimeType;
+      const originalDataUrl = `data:${originalImageMimeType};base64,${originalBase64Image}`;
+
+      const imgPreview = document.getElementById('image-preview');
+      imgPreview.src = originalDataUrl;
+      imgPreview.classList.remove('hidden');
+      document.getElementById('pdf-canvas').classList.add('hidden');
+
+      document.getElementById('badge-cropped').classList.add('hidden');
+      document.getElementById('btn-reset-crop').classList.add('hidden');
+
+      resetZoom();
+      showToast('元の全体図面（最高画質）に戻しました');
+    }
+
     // APIキー管理
     function openApiKeyModal() {
       const input = document.getElementById('input-api-key');
@@ -483,7 +648,7 @@
       const val = input.value.trim();
       
       if (!val) {
-        showToast('キーが空のままです。コピーしたキーを枠内に貼り付けてください');
+        showToast('キーが空のままです。貼り付けてください');
         return;
       }
 
@@ -564,18 +729,26 @@
       }, false);
     });
 
+    // ==========================================
+    // ファイル処理（完全ロスレス・高解像度読み込み）
+    // ==========================================
     async function handleFile(file) {
       if (!file) return;
 
       document.getElementById('drop-prompt').classList.add('hidden');
       const fileInfo = document.getElementById('file-info');
-      fileInfo.textContent = `選択中: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      fileInfo.textContent = `最高画質読み込み: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
       fileInfo.classList.remove('hidden');
 
       const btnAnalyze = document.getElementById('btn-analyze');
+      const btnCrop = document.getElementById('btn-open-crop');
       btnAnalyze.disabled = false;
+      btnCrop.disabled = false;
 
-      showToast('図面を展開中...');
+      document.getElementById('badge-cropped').classList.add('hidden');
+      document.getElementById('btn-reset-crop').classList.add('hidden');
+
+      showToast('図面を超高精細レンダリング中...');
 
       if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
         const fileReader = new FileReader();
@@ -586,16 +759,14 @@
             const pdf = await loadingTask.promise;
             const page = await pdf.getPage(1);
             
+            // 図面の微細な数字も潰れないよう、横幅基準で十分な超高解像度(4000px級)を確保
             const unscaled = page.getViewport({ scale: 1.0 });
-            let scale = 3.5;
-            if (unscaled.width < 1000) {
-              scale = 3200 / unscaled.width;
-            }
-            scale = Math.min(Math.max(scale, 2.5), 5.0);
+            let scale = 4000 / unscaled.width;
+            scale = Math.min(Math.max(scale, 3.0), 6.0); // 3倍〜6倍の超高精細
 
             const viewport = page.getViewport({ scale: scale });
             const canvas = document.getElementById('pdf-canvas');
-            const context = canvas.getContext('2d');
+            const context = canvas.getContext('2d', { alpha: false });
             canvas.height = viewport.height;
             canvas.width = viewport.width;
 
@@ -604,54 +775,51 @@
 
             await page.render({
               canvasContext: context,
-              viewport: viewport
+              viewport: viewport,
+              intent: 'print' // 印刷品質の高精細ベクター展開
             }).promise;
 
             canvas.classList.remove('hidden');
             document.getElementById('image-preview').classList.add('hidden');
             document.getElementById('preview-placeholder').classList.add('hidden');
 
-            currentBase64Image = canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
+            // PNG形式で無劣化Base64化
+            const fullPngUrl = canvas.toDataURL('image/png');
+            const base64 = fullPngUrl.split(',')[1];
+            currentBase64Image = base64;
+            currentImageMimeType = 'image/png';
+            originalBase64Image = base64;
+            originalImageMimeType = 'image/png';
+
             resetZoom();
-            showToast('PDFを展開しました。ドラッグで移動、2本指で拡大できます');
+            showToast('PDFを超高画質で展開しました（文字の潰れを防止）');
           } catch (err) {
             console.error('PDF描画エラー:', err);
-            showToast('PDFの展開に失敗しました。画像形式もお試しください');
+            showToast('PDFの展開に失敗しました');
           }
         };
         fileReader.readAsArrayBuffer(file);
       } else if (file.type.startsWith('image/')) {
+        // ★重要：画像ファイル（PNG/JPEG）は一切の再圧縮や縮小を行わず、元ファイルそのものを完全に読み込む
         const reader = new FileReader();
         reader.onload = function(e) {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.getElementById('pdf-canvas');
-            
-            let targetW = img.naturalWidth;
-            let targetH = img.naturalHeight;
-            if (targetW < 2400) {
-              const ratio = 2400 / targetW;
-              targetW = Math.round(targetW * ratio);
-              targetH = Math.round(targetH * ratio);
-            }
+          const rawDataUrl = e.target.result;
+          const mimeType = rawDataUrl.substring(5, rawDataUrl.indexOf(';'));
+          const base64 = rawDataUrl.split(',')[1];
 
-            canvas.width = targetW;
-            canvas.height = targetH;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, targetW, targetH);
+          currentBase64Image = base64;
+          currentImageMimeType = mimeType;
+          originalBase64Image = base64;
+          originalImageMimeType = mimeType;
 
-            document.getElementById('image-preview').src = canvas.toDataURL('image/jpeg', 0.95);
-            document.getElementById('image-preview').classList.remove('hidden');
-            canvas.classList.add('hidden');
-            document.getElementById('preview-placeholder').classList.add('hidden');
+          const imgPreview = document.getElementById('image-preview');
+          imgPreview.src = rawDataUrl;
+          imgPreview.classList.remove('hidden');
+          document.getElementById('pdf-canvas').classList.add('hidden');
+          document.getElementById('preview-placeholder').classList.add('hidden');
 
-            currentBase64Image = canvas.toDataURL('image/jpeg', 0.95).split(',')[1];
-            resetZoom();
-            showToast('画像を読み込みました。ドラッグで移動、2本指で拡大できます');
-          };
-          img.src = e.target.result;
+          resetZoom();
+          showToast('画像ファイルを無劣化・原寸最高画質で読み込みました');
         };
         reader.readAsDataURL(file);
       } else {
@@ -659,6 +827,9 @@
       }
     }
 
+    // ==========================================
+    // Gemini AI 自動読取処理
+    // ==========================================
     async function analyzeCurrentDocument() {
       if (!currentBase64Image) {
         showToast('図面ファイルを選択してください');
@@ -672,12 +843,13 @@
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
       const systemPrompt = `あなたは建築外壁・板金積算の専門エキスパートです。
-提供された建築図面・立面図（黒い外壁ラインや赤色・ピンク色の寸法矢印・数値）からミリメートル(mm)の寸法数値を厳密に抽出しJSONで返してください。
+提供された高精細な建築図面・立面図（黒い外壁ラインや赤色・ピンク色の寸法矢印・数値）からミリメートル(mm)の寸法数値を厳密に抽出しJSONで返してください。
+なお、図面の一部がトリミング・切り抜きされている場合は、その切り抜かれた範囲の外壁寸法・開口部寸法を読み取ってください。
 1. wallW: 全幅(mm)（例: "42,000" は 42000, "20000" は 20000）
 2. wallH: 壁の最長・高さ(mm)（例: "11,000" は 11000, "5,700" は 5700）
 3. openings: 開口部リスト(label, leftX, width, height, bottomY, count)
    - label: 必ず日本語で「開口1」「開口2」のように記述してください。
-   - leftX: 壁全体の左端から各開口左端までの距離(mm)。
+   - leftX: 表示されている壁全体の左端から各開口左端までの距離(mm)。
    - 地面に接している開口は bottomY = 0 です。`;
 
       const payload = {
@@ -686,7 +858,7 @@
             role: "user",
             parts: [
               { text: "この図面から全体の全幅(wallW)、高さ(wallH)、開口部寸法(leftX, width, height, bottomY)を抽出してJSONで返してください。" },
-              { inlineData: { mimeType: "image/jpeg", data: currentBase64Image } }
+              { inlineData: { mimeType: currentImageMimeType, data: currentBase64Image } }
             ]
           }
         ],
@@ -851,7 +1023,6 @@
     function validateInputs(Pitch, W, H, openings) {
       const errors = [];
 
-      // 1. 基本寸法の検証
       if (!W || W <= 0) {
         errors.push('【全幅 (W)】が未入力または 0 です。壁全体の横幅(mm)を入力してください。');
       }
@@ -862,7 +1033,6 @@
         errors.push('【働幅】が未入力または 0 です。成形板の働幅(例: 500mm)を入力してください。');
       }
 
-      // 2. 開口寸法・配置の検証
       openings.forEach((op, i) => {
         const name = op.label || `開口${i + 1}`;
         if (!op.w || op.w <= 0) {
@@ -872,7 +1042,6 @@
           errors.push(`【${name}】の高さ (H) が未入力または 0 です。`);
         }
 
-        // 壁からはみ出していないかのチェック（W, Hが正常に入力されている場合）
         if (W > 0 && (op.x + op.w) > W) {
           errors.push(`【${name}】の位置が壁の右端を超えています。(X: ${op.x} + 幅: ${op.w} = ${op.x + op.w}mm > 全幅: ${W}mm)`);
         }
@@ -903,7 +1072,6 @@
       const H = parseFloat(document.getElementById('input-wallH').value) || 0;
       const enableLongestPriority = document.getElementById('chk-round-rule')?.checked ?? true;
 
-      // 入力寸法の整合性チェック（情報不足時の無理な計算を阻止）
       const validationErrors = validateInputs(Pitch, W, H, openingsData);
       const alertBox = document.getElementById('validation-alert');
       const errorList = document.getElementById('validation-errors');
@@ -912,10 +1080,9 @@
         errorList.innerHTML = validationErrors.map(err => `<li>${escapeHtml(err)}</li>`).join('');
         alertBox.classList.remove('hidden');
         resetOutputDisplays('入力エラー');
-        return; // ★無理やり計算せずに即座に停止
+        return;
       }
 
-      // エラーが解消されたら警告バナーを隠す
       alertBox.classList.add('hidden');
 
       const mod = W % Pitch;
@@ -1073,7 +1240,7 @@
     function copyResults() {
       const alertBox = document.getElementById('validation-alert');
       if (alertBox && !alertBox.classList.contains('hidden')) {
-        showToast('入力内容に不備があるため、コピーできません。赤字の警告を確認してください');
+        showToast('入力内容に不備があるため、コピーできません');
         return;
       }
 
@@ -1151,7 +1318,7 @@
           windowWidth: document.documentElement.clientWidth,
           windowHeight: document.documentElement.clientHeight,
           ignoreElements: (element) => {
-            return element.id === 'toast' || element.id === 'api-modal' || element.id === 'image-modal';
+            return element.id === 'toast' || element.id === 'api-modal' || element.id === 'image-modal' || element.id === 'crop-modal';
           }
         });
 
@@ -1169,9 +1336,7 @@
           canvas.toBlob((b) => resolve(b), 'image/png', 0.95);
         });
 
-        if (!blob) {
-          throw new Error('画像の生成に失敗しました');
-        }
+        if (!blob) throw new Error('画像の生成に失敗しました');
 
         const file = new File([blob], fileName, { type: 'image/png' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -1188,7 +1353,6 @@
               showToast('キャンセルされました');
               return;
             }
-            console.warn('Web Share失敗、ダウンロードにフォールバック:', shareErr);
           }
         }
 
@@ -1268,15 +1432,6 @@
       updateApiKeyUI();
     });
   </script>
-
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js', { scope: './' })
-          .catch(err => console.error('Service Worker registration failed:', err));
-      });
-    }
-  </script>
-
+<script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(err => console.error('Service Worker registration failed:', err)); }); }</script>
 </body>
 </html>
