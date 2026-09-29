@@ -3,147 +3,207 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>図面AI自動読取＆材料計算 - KYOWA ROOF</title>
+  <title>図面AI自動読取＆材料計算 - KYOWA ROOF (Mac / iPad 専用)</title>
+  
+  <link rel="manifest" href="./manifest.json?v=202609290848">
+  <meta name="theme-color" content="#09090b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="図面計算">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+  <meta name="format-detection" content="telephone=no">
+
+  <script>
+    if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js?v=202609290848').then(reg => {
+          reg.onupdatefound = () => {
+            const installingWorker = reg.installing;
+            if (!installingWorker) return;
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                installingWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            };
+          };
+        }).catch(() => {});
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            window.location.reload();
+            refreshing = true;
+          }
+        });
+      });
+    }
+  </script>
+<!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- PDF.js: PDFを高精細画像化してAI認識とプレビューに利用 -->
+  
+  <!-- PDF.js: 高解像度ベクター展開エンジン -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   </script>
-  <!-- Cropper.js: iPad・PC完全対応の画像切り抜きライブラリ -->
+
+  <!-- Cropper.js: iPad/Mac 完全最適化トリミング -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
-  <!-- html2canvas: 画面全体のスクリーンショット保存用 -->
+  
+  <!-- html2canvas: Retina解像度キャプチャ -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <meta name="theme-color" content="#09090b">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
   <style>
     :root {
-      --bg: #000000;
+      --bg: #09090b;
       --card-bg: #141416;
-      --panel-bg: #1c1c1e;
+      --panel-bg: #18181b;
       --text: #ffffff;
-      --sub-text: #8e8e93;
       --accent-orange: #f97316;
-      --accent-blue: #0ea5e9;
+      --accent-sky: #0ea5e9;
       --accent-green: #22c55e;
       --border: #27272a;
     }
+
     * {
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
     }
-    body {
+
+    /* iPad / Mac Safari 向けフォント＆バウンス抑制 */
+    html, body {
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
       background-color: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 14px;
-      padding-bottom: env(safe-area-inset-bottom);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Hiragino Kaku Gothic ProN", "Helvetica Neue", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      user-select: none;
+      -webkit-user-select: none;
     }
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 4px;
-      height: 4px;
+
+    /* 入力欄のみテキスト選択を許可 */
+    input, textarea {
+      user-select: text !important;
+      -webkit-user-select: text !important;
     }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #3f3f46;
-      border-radius: 4px;
+
+    /* iOS Safari 自動ズーム完全防止 (16px保証) */
+    input[type=number], input[type=text], input[type=password] {
+      font-size: 16px !important;
+      -moz-appearance: textfield;
     }
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button {
       -webkit-appearance: none;
       margin: 0;
     }
-    input[type=number] {
-      -moz-appearance: textfield;
-      font-size: 16px !important; /* iOS Safariの自動ズーム防止 */
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
     }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #3f3f46;
+      border-radius: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    /* iPad/Mac キャンバスドラッグ最適化 */
     .drag-canvas {
       cursor: grab;
-      user-select: none;
       touch-action: none;
     }
     .drag-canvas:active {
       cursor: grabbing;
     }
-    /* 画像の滲み防止レンダリング */
+
     #image-preview, #pdf-canvas, #crop-source-img {
       image-rendering: -webkit-optimize-contrast;
       image-rendering: crisp-edges;
     }
-    /* Cropper.jsのダークテーマ調整 */
+
+    /* Cropper.js ダークモード調整 */
     .cropper-view-box {
       outline: 2px solid #f97316;
-      outline-color: rgba(249, 115, 22, 0.85);
+      outline-color: rgba(249, 115, 22, 0.9);
     }
     .cropper-line, .cropper-point {
       background-color: #f97316;
     }
     .cropper-point.point-se {
-      width: 12px;
-      height: 12px;
+      width: 14px;
+      height: 14px;
     }
   </style>
-  <link rel="manifest" href="./manifest.json">
 </head>
-<body id="capture-target" class="h-screen w-screen overflow-hidden flex flex-col bg-black text-white">
 
-  <!-- ヘッダー -->
-  <header class="flex-none px-4 py-2 border-b border-zinc-800 flex justify-between items-center bg-zinc-950 z-20">
+<body id="capture-target" class="h-[100dvh] w-screen overflow-hidden flex flex-col bg-black text-white">
+
+  <!-- ヘッダー（Mac / iPad ノッチ・セーフエリア対応） -->
+  <header class="flex-none pt-[env(safe-area-inset-top)] px-3 sm:px-4 py-2 border-b border-zinc-800 flex justify-between items-center bg-zinc-950/90 backdrop-blur z-20">
     <div class="flex items-center gap-2">
       <span class="inline-block w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
-      <h1 class="text-base font-bold tracking-wide">図面AI自動読取 & 材料計算</h1>
-      <span class="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono hidden sm:inline">高精細ロスレス対応</span>
+      <h1 class="text-sm sm:text-base font-bold tracking-wide">図面AI自動読取 ＆ 材料計算</h1>
+      <span class="text-[11px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono hidden md:inline">Mac / iPad Edition</span>
     </div>
     <div class="flex items-center gap-2">
-      <button id="btn-api-key" onclick="openApiKeyModal()" class="text-xs px-2.5 py-1 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-orange-500 transition-colors flex items-center gap-1">
+      <button id="btn-api-key" type="button" onclick="openApiKeyModal()" class="text-xs px-2.5 py-1 rounded-md border border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-orange-500 active:bg-zinc-800 transition-colors flex items-center gap-1.5 shadow-sm">
         <span>🔑</span>
         <span id="label-api-status">APIキー設定</span>
       </button>
-      <div class="text-xs font-bold text-zinc-400">KYOWA ROOF</div>
+      <div class="text-xs font-bold text-zinc-400 font-mono">KYOWA ROOF</div>
     </div>
   </header>
 
-  <!-- メインエリア: 50% / 50% の均等2カラムレイアウト -->
-  <div class="flex-1 overflow-hidden flex flex-col md:flex-row p-2.5 gap-2.5">
+  <!-- メインエリア: 50% / 50% 均等2カラムレイアウト -->
+  <div class="flex-1 overflow-hidden flex flex-col md:flex-row p-2 sm:p-2.5 gap-2 sm:gap-2.5 pb-[calc(env(safe-area-inset-bottom)+8px)]">
 
     <!-- 左カラム: 図面アップロード & プレビュー表示エリア (50%) -->
-    <div class="flex-1 md:w-1/2 flex flex-col gap-2 min-h-0 bg-[#111113] border border-zinc-800 rounded-xl p-2.5">
-      <div class="flex items-center justify-between pb-1 border-b border-zinc-800">
-        <h2 class="text-sm font-bold text-zinc-200 flex items-center gap-1.5">
+    <div class="flex-1 md:w-1/2 flex flex-col gap-2 min-h-0 bg-[#111113] border border-zinc-800 rounded-xl p-2.5 shadow-lg">
+      <div class="flex items-center justify-between pb-1 border-b border-zinc-800 flex-none">
+        <h2 class="text-xs sm:text-sm font-bold text-zinc-200 flex items-center gap-1.5">
           <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
           図面アップロード
         </h2>
         <div class="flex items-center gap-1.5">
           <span id="badge-cropped" class="hidden text-[11px] px-1.5 py-0.5 rounded bg-orange-950 text-orange-400 border border-orange-700 font-semibold">切り抜き表示中</span>
-          <span class="text-xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">Gemini AI</span>
+          <span class="text-[11px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">Gemini AI</span>
         </div>
       </div>
 
-      <!-- ドロップゾーン -->
-      <div id="drop-zone" onclick="document.getElementById('file-input').click()" class="border-2 border-dashed border-zinc-700 hover:border-orange-500 rounded-lg p-2 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-zinc-900/60 relative group">
+      <!-- ドロップゾーン (Macドラッグ＆ドロップ / iPadファイル選択対応) -->
+      <div id="drop-zone" onclick="document.getElementById('file-input').click()" class="flex-none border-2 border-dashed border-zinc-700 hover:border-orange-500 rounded-lg p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-zinc-900/60 relative group">
         <input type="file" id="file-input" accept="application/pdf,image/*" class="hidden">
         <div id="drop-prompt" class="flex flex-col items-center gap-0.5 pointer-events-none">
-          <div class="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center text-orange-400 group-hover:scale-110 transition-transform">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+          <div class="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-orange-400 group-hover:scale-110 transition-transform">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
           </div>
-          <p class="text-xs font-semibold text-zinc-200">PDF / 画像ファイルをドロップ (原寸最高画質で読み込みます)</p>
-          <p class="text-[11px] text-zinc-500">クリックして選択 / 写真撮影（GoodNotes図面・PNG・JPEG対応）</p>
+          <p class="text-xs font-semibold text-zinc-200">PDF / 画像ファイルをドロップ (原寸最高画質)</p>
+          <p class="text-[11px] text-zinc-500">クリック / タップして選択（GoodNotes図面・PDF・PNG・JPEG）</p>
         </div>
         <div id="file-info" class="hidden text-xs text-orange-400 font-medium pointer-events-none"></div>
       </div>
 
       <!-- ズーム＆パン対応プレビュー表示領域 -->
-      <div id="preview-wrapper" class="flex-1 min-h-[140px] bg-black/80 rounded-lg border border-zinc-800 relative overflow-hidden drag-canvas flex items-center justify-center">
+      <div id="preview-wrapper" class="flex-1 min-h-[140px] bg-black/90 rounded-lg border border-zinc-800 relative overflow-hidden drag-canvas flex items-center justify-center">
         <!-- ズーム操作コントローラー -->
-        <div id="zoom-controls" class="absolute top-2 right-2 flex items-center gap-1.5 z-30 bg-zinc-900/90 border border-zinc-700 rounded-md p-1 shadow-lg">
+        <div id="zoom-controls" class="absolute top-2 right-2 flex items-center gap-1.5 z-30 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-md p-1 shadow-lg">
           <button type="button" onclick="zoomIn()" class="w-8 h-8 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-white rounded text-base font-bold flex items-center justify-center transition-colors" title="拡大">+</button>
           <button type="button" onclick="zoomOut()" class="w-8 h-8 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-white rounded text-base font-bold flex items-center justify-center transition-colors" title="縮小">−</button>
           <button type="button" onclick="resetZoom()" class="px-2.5 h-8 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-300 rounded text-xs font-medium flex items-center justify-center transition-colors" title="リセット">初期値</button>
           <span id="zoom-level" class="text-xs font-mono text-orange-400 px-1 min-w-[42px] text-center">100%</span>
         </div>
 
-        <!-- 移動案内ヒント -->
+        <!-- 操作ヒント -->
         <div id="pan-hint" class="absolute bottom-2 left-2 z-20 bg-black/70 border border-zinc-800 text-zinc-400 text-[11px] px-2 py-0.5 rounded pointer-events-none">
           ドラッグで移動 / 2本指でピンチ拡大
         </div>
@@ -155,20 +215,20 @@
         </div>
 
         <div id="preview-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 text-xs gap-1 text-center px-2 pointer-events-none">
-          <svg class="w-6 h-6 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          <svg class="w-7 h-7 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
           図面アップロード後に最高画質でプレビュー表示
         </div>
 
         <!-- AI解析中ローディングオーバーレイ -->
-        <div id="loading-overlay" class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center gap-2 hidden z-40">
-          <div class="w-7 h-7 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+        <div id="loading-overlay" class="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center gap-2 hidden z-40">
+          <div class="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
           <p class="text-xs sm:text-sm font-semibold text-zinc-200" id="loading-title">Gemini AI が原寸高精細で図面を解析中...</p>
           <p class="text-[12px] text-zinc-400" id="loading-desc">全幅・最長・各開口寸法を読取中</p>
         </div>
       </div>
 
       <!-- 操作ボタン群 -->
-      <div class="flex flex-col gap-1.5">
+      <div class="flex-none flex flex-col gap-1.5">
         <div class="flex gap-1.5">
           <button id="btn-open-crop" type="button" onclick="openCropModal()" disabled class="flex-1 h-9 px-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 disabled:bg-zinc-900 disabled:text-zinc-600 text-orange-400 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5" title="図面の一部を四角く囲んで最高解像度のまま切り抜きます">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"></path></svg>
@@ -181,11 +241,11 @@
         </div>
 
         <div class="flex gap-1.5">
-          <button id="btn-screenshot" type="button" onclick="saveScreenshot()" class="flex-1 h-10 px-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1 text-center" title="画面全体の計算結果を画像(PNG)として保存">
+          <button id="btn-screenshot" type="button" onclick="saveScreenshot()" class="flex-1 h-10 px-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 text-center shadow" title="画面全体の計算結果を画像(PNG)として保存">
             <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
             <span id="btn-screenshot-text">画面を画像保存</span>
           </button>
-          <button id="btn-analyze" onclick="analyzeCurrentDocument()" disabled class="flex-1 h-10 px-2 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 text-center">
+          <button id="btn-analyze" type="button" onclick="analyzeCurrentDocument()" disabled class="flex-1 h-10 px-2 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 text-center shadow-lg">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
             <span>AI自動読取</span>
           </button>
@@ -195,10 +255,10 @@
     </div>
 
     <!-- 右カラム: 読み取り数値 & 自動計算結果エリア (50%) -->
-    <div class="flex-1 md:w-1/2 flex flex-col gap-2 min-h-0 bg-[#111113] border border-zinc-800 rounded-xl p-2.5 overflow-y-auto custom-scrollbar">
+    <div class="flex-1 md:w-1/2 flex flex-col gap-2 min-h-0 bg-[#111113] border border-zinc-800 rounded-xl p-2.5 overflow-y-auto custom-scrollbar shadow-lg">
 
       <!-- 【一番上】面積サマリーカード -->
-      <div class="grid grid-cols-3 gap-1.5">
+      <div class="grid grid-cols-3 gap-1.5 flex-none">
         <div class="bg-zinc-900 border border-zinc-800 rounded-lg p-1.5 flex flex-col justify-between">
           <span class="text-[12px] font-bold text-zinc-400">全体面積</span>
           <div class="text-base font-extrabold font-mono text-white mt-0.5" id="res-gross-area">0.00<span class="text-[12px] text-zinc-400 font-normal">㎡</span></div>
@@ -214,7 +274,7 @@
       </div>
 
       <!-- 不足情報・入力エラー警告通知バナー -->
-      <div id="validation-alert" class="hidden bg-red-950/80 border-2 border-red-500/90 rounded-lg p-2.5 text-xs text-red-200 flex flex-col gap-1.5 animate-pulse">
+      <div id="validation-alert" class="hidden bg-red-950/80 border-2 border-red-500/90 rounded-lg p-2.5 text-xs text-red-200 flex flex-col gap-1.5 animate-pulse flex-none">
         <div class="flex items-center gap-1.5 font-bold text-red-400 text-sm">
           <svg class="w-4 h-4 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
           <span>寸法情報が不足しているため、計算を中断しています</span>
@@ -223,10 +283,10 @@
       </div>
 
       <!-- 入力・抽出数値確認カード -->
-      <div class="bg-zinc-900/90 border border-zinc-800 rounded-lg p-2 flex flex-col gap-1.5">
+      <div class="bg-zinc-900/90 border border-zinc-800 rounded-lg p-2 flex flex-col gap-1.5 flex-none">
         <div class="flex justify-between items-center pb-1 border-b border-zinc-800">
           <span class="text-xs font-bold text-zinc-300">図面読取寸法 (直接入力・修正可能)</span>
-          <span class="text-xs text-orange-400 flex items-center gap-1">働幅: 
+          <span class="text-xs text-orange-400 flex items-center gap-1 font-medium">働幅: 
             <input type="number" inputmode="numeric" id="input-pitch" value="500" class="w-16 bg-black border border-zinc-700 px-1 py-0.5 text-white font-mono rounded text-right text-xs" oninput="calculate()"> mm
           </span>
         </div>
@@ -254,14 +314,14 @@
         <div class="mt-0.5">
           <div class="flex justify-between items-center text-xs font-semibold text-zinc-300 mb-0.5">
             <span>開口部リスト (<span id="opening-count">0</span>箇所)</span>
-            <button type="button" onclick="addOpeningRow()" class="text-orange-400 hover:text-orange-300 text-xs font-bold py-1 px-1">+ 開口を追加</button>
+            <button type="button" onclick="addOpeningRow()" class="text-orange-400 hover:text-orange-300 active:scale-95 text-xs font-bold py-1 px-1 transition-transform">+ 開口を追加</button>
           </div>
-          <div id="openings-container" class="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar pr-0.5"></div>
+          <div id="openings-container" class="flex flex-col gap-1 max-h-[220px] md:max-h-[280px] overflow-y-auto custom-scrollbar pr-0.5"></div>
         </div>
       </div>
 
       <!-- 材料取り内訳（計算結果） -->
-      <div class="bg-zinc-900 border border-orange-500/80 rounded-lg p-2 text-xs flex flex-col gap-1">
+      <div class="bg-zinc-900 border border-orange-500/80 rounded-lg p-2 text-xs flex flex-col gap-1 flex-none shadow-sm">
         <div class="flex justify-between items-center pb-1 border-b border-zinc-800">
           <span class="font-bold text-zinc-200">【結果】総必要枚数</span>
           <span class="font-extrabold text-sky-400 font-mono text-[20px]" id="res-total-sheets">0 枚</span>
@@ -285,7 +345,7 @@
       </div>
 
       <!-- 【一番下】端寸ステータス表示（片張余り・芯割余り） -->
-      <div class="grid grid-cols-2 gap-1.5">
+      <div class="grid grid-cols-2 gap-1.5 flex-none">
         <div class="bg-zinc-900 border border-sky-500/60 rounded-lg p-2 flex justify-between items-center">
           <span class="text-xs font-bold text-sky-400">片張余り</span>
           <div class="text-[20px] font-extrabold font-mono text-white" id="disp-end-dim">0<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span></div>
@@ -297,7 +357,7 @@
       </div>
 
       <!-- 控え用コピーボタン -->
-      <button type="button" onclick="copyResults()" class="mt-auto h-10 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5">
+      <button type="button" onclick="copyResults()" class="mt-auto h-10 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 flex-none shadow">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
         <span>計算結果をクリップボードにコピー</span>
       </button>
@@ -321,7 +381,7 @@
     </div>
     
     <div class="text-[11px] text-zinc-400 px-2 pt-1 flex justify-between items-center flex-none">
-      <span>枠の四隅や辺を指で引っ張ってサイズを調整できます（原寸ピクセルを維持して切り抜きます）</span>
+      <span>枠の四隅や辺を指/トラックパッドで調整（原寸ピクセルを維持して切り抜きます）</span>
       <div class="flex gap-1">
         <button type="button" onclick="cropperReset()" class="px-2 py-0.5 bg-zinc-800 text-[11px] text-zinc-300 rounded hover:text-white">枠を全開に</button>
       </div>
@@ -340,10 +400,10 @@
         <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
           <span>🔑</span> Gemini APIキー設定
         </h3>
-        <button onclick="closeApiKeyModal()" class="text-zinc-400 hover:text-white text-lg leading-none">✕</button>
+        <button type="button" onclick="closeApiKeyModal()" class="text-zinc-400 hover:text-white text-lg leading-none">✕</button>
       </div>
       <p class="text-xs text-zinc-300 leading-relaxed">
-        Google AI Studioで取得した無料のAPIキーを入力してください。
+        Google AI Studioで取得したAPIキーを入力してください。
       </p>
       <div class="flex flex-col gap-1">
         <label class="text-[12px] font-semibold text-zinc-400">Gemini APIキー (AIzaSy...)</label>
@@ -353,8 +413,8 @@
         ※キーはブラウザに安全に保持されます。<a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-orange-400 underline">Google AI Studio</a> から取得できます。
       </div>
       <div class="flex gap-2 justify-end mt-1">
-        <button onclick="clearApiKey()" class="px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded bg-zinc-800">クリア</button>
-        <button onclick="saveApiKey()" class="px-4 py-1.5 text-xs font-bold text-white rounded bg-orange-600 hover:bg-orange-500">保存して閉じる</button>
+        <button type="button" onclick="clearApiKey()" class="px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded bg-zinc-800">クリア</button>
+        <button type="button" onclick="saveApiKey()" class="px-4 py-1.5 text-xs font-bold text-white rounded bg-orange-600 hover:bg-orange-500">保存して閉じる</button>
       </div>
     </div>
   </div>
@@ -366,7 +426,7 @@
         <h3 class="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
           <span class="text-green-400">✓</span> スクリーンショット作成完了
         </h3>
-        <button onclick="closeImageModal()" class="w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-white text-lg rounded-full hover:bg-zinc-800">✕</button>
+        <button type="button" onclick="closeImageModal()" class="w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-white text-lg rounded-full hover:bg-zinc-800">✕</button>
       </div>
       <p class="text-[11px] text-zinc-300">
         画像を長押しまたは右クリックして「<span class="text-orange-400 font-bold">写真に追加</span>」または「<span class="text-orange-400 font-bold">画像を保存</span>」を選択してください。
@@ -379,7 +439,7 @@
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
           直接ダウンロード再試行
         </a>
-        <button onclick="closeImageModal()" class="px-4 py-1.5 text-xs font-semibold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded">閉じる</button>
+        <button type="button" onclick="closeImageModal()" class="px-4 py-1.5 text-xs font-semibold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded">閉じる</button>
       </div>
     </div>
   </div>
@@ -395,18 +455,21 @@
     let savedApiKey = localStorage.getItem('kyowa_gemini_api_key') || '';
     let cropperInstance = null;
 
-    // 入力欄タップ・フォーカス時に即座に全選択する設定（iOS Safari自動ズーム・誤解除防止）
+    // iPad / Mac Safari 向けフォーカス時全選択（InvalidStateError防止対応）
     document.addEventListener('focusin', (e) => {
-      if (e.target && e.target.tagName === 'INPUT' && (e.target.type === 'number' || e.target.type === 'text' || e.target.type === 'password')) {
-        e.target.select();
-        setTimeout(() => {
-          try {
-            e.target.select();
-            if (e.target.setSelectionRange) {
-              e.target.setSelectionRange(0, 9999);
-            }
-          } catch (_) {}
-        }, 50);
+      if (e.target && e.target.tagName === 'INPUT') {
+        if (e.target.type === 'number') {
+          e.target.select();
+        } else if (e.target.type === 'text' || e.target.type === 'password') {
+          e.target.select();
+          setTimeout(() => {
+            try {
+              if (e.target.setSelectionRange) {
+                e.target.setSelectionRange(0, 9999);
+              }
+            } catch (_) {}
+          }, 50);
+        }
       }
     });
 
@@ -449,7 +512,7 @@
       updateTransform();
     }
 
-    // マウスドラッグ移動
+    // Mac マウス・トラックパッド操作
     previewWrapper.addEventListener('mousedown', (e) => {
       if (e.target.closest('#zoom-controls')) return;
       isDragging = true;
@@ -469,21 +532,27 @@
       isDragging = false;
     });
 
-    // マウスホイールズーム
+    // Mac トラックパッド二本指スクロール & ピンチ
     previewWrapper.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const zoomFactor = e.deltaY < 0 ? 1.15 : 0.88;
-      zoomScale = Math.min(Math.max(zoomScale * zoomFactor, 0.3), 10.0);
+      if (e.ctrlKey) {
+        // Mac トラックパッドのピンチズーム対応
+        const zoomDelta = -e.deltaY * 0.01;
+        zoomScale = Math.min(Math.max(zoomScale + zoomDelta, 0.3), 10.0);
+      } else {
+        const zoomFactor = e.deltaY < 0 ? 1.15 : 0.88;
+        zoomScale = Math.min(Math.max(zoomScale * zoomFactor, 0.3), 10.0);
+      }
       updateTransform();
     }, { passive: false });
 
-    // ダブルクリックでリセット
+    // ダブルクリック / ダブルタップでリセット
     previewWrapper.addEventListener('dblclick', (e) => {
       if (e.target.closest('#zoom-controls')) return;
       resetZoom();
     });
 
-    // タッチデバイス（iPad・iPhone）対応
+    // iPad マルチタッチ（ピンチ＆ドラッグ）対応
     previewWrapper.addEventListener('touchstart', (e) => {
       if (e.target.closest('#zoom-controls')) return;
       if (e.touches.length === 1) {
@@ -585,7 +654,7 @@
 
       // 元画像の「実解像度・実ピクセルそのまま」で切り抜く（縮小させない）
       const croppedCanvas = cropperInstance.getCroppedCanvas({
-        imageSmoothingEnabled: false // 文字や線のエッジをぼかさずそのまま抽出
+        imageSmoothingEnabled: false // 文字や線のエッジを維持
       });
 
       if (!croppedCanvas) {
@@ -609,7 +678,7 @@
 
       closeCropModal();
       resetZoom();
-      showToast('指定範囲を高精細のまま切り抜きました！このまま「AI自動読取」を押してください');
+      showToast('指定範囲を高精細のまま切り抜きました！「AI自動読取」を押してください');
     }
 
     function resetToOriginalImage() {
@@ -759,10 +828,10 @@
             const pdf = await loadingTask.promise;
             const page = await pdf.getPage(1);
             
-            // 図面の微細な数字も潰れないよう、横幅基準で十分な超高解像度(4000px級)を確保
+            // 図面の微細な数字も潰れないよう、高解像度(4000px級)を確保
             const unscaled = page.getViewport({ scale: 1.0 });
             let scale = 4000 / unscaled.width;
-            scale = Math.min(Math.max(scale, 3.0), 6.0); // 3倍〜6倍の超高精細
+            scale = Math.min(Math.max(scale, 3.0), 6.0); // 3倍〜6倍
 
             const viewport = page.getViewport({ scale: scale });
             const canvas = document.getElementById('pdf-canvas');
@@ -776,14 +845,13 @@
             await page.render({
               canvasContext: context,
               viewport: viewport,
-              intent: 'print' // 印刷品質の高精細ベクター展開
+              intent: 'print'
             }).promise;
 
             canvas.classList.remove('hidden');
             document.getElementById('image-preview').classList.add('hidden');
             document.getElementById('preview-placeholder').classList.add('hidden');
 
-            // PNG形式で無劣化Base64化
             const fullPngUrl = canvas.toDataURL('image/png');
             const base64 = fullPngUrl.split(',')[1];
             currentBase64Image = base64;
@@ -800,7 +868,6 @@
         };
         fileReader.readAsArrayBuffer(file);
       } else if (file.type.startsWith('image/')) {
-        // ★重要：画像ファイル（PNG/JPEG）は一切の再圧縮や縮小を行わず、元ファイルそのものを完全に読み込む
         const reader = new FileReader();
         reader.onload = function(e) {
           const rawDataUrl = e.target.result;
@@ -1066,6 +1133,9 @@
       document.getElementById('disp-center-dim').innerHTML = `0<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span>`;
     }
 
+    // =========================================================================
+    // 【絶対厳守ルール：計算式・定数・丸め処理 1文字たりとも変更完全禁止】
+    // =========================================================================
     function calculate() {
       const Pitch = parseFloat(document.getElementById('input-pitch').value) || 0;
       const W = parseFloat(document.getElementById('input-wallW').value) || 0;
@@ -1322,11 +1392,6 @@
           }
         });
 
-        zoomScale = prevScale;
-        panX = prevPanX;
-        panY = prevPanY;
-        updateTransform();
-
         const now = new Date();
         const pad = (n) => String(n).padStart(2, '0');
         const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
@@ -1338,6 +1403,7 @@
 
         if (!blob) throw new Error('画像の生成に失敗しました');
 
+        // iPad / Mac の共有シート（AirDrop / 写真保存対応）
         const file = new File([blob], fileName, { type: 'image/png' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           try {
@@ -1382,7 +1448,7 @@
           openImageModal(canvas.toDataURL('image/png'));
           showToast('画像を表示しました。長押しで保存できます');
         } catch (innerErr) {
-          showToast(`保存に失敗しました: ${err.message || 'ブラウザのセキュリティ設定を確認してください'}`);
+          showToast(`保存に失敗しました: ${err.message || 'ブラウザの設定を確認してください'}`);
         }
       } finally {
         if (btn) btn.disabled = false;
@@ -1425,6 +1491,7 @@
       }[tag] || tag));
     }
 
+    // 初期起動
     window.addEventListener('DOMContentLoaded', () => {
       renderOpenings();
       calculate();
@@ -1432,6 +1499,5 @@
       updateApiKeyUI();
     });
   </script>
-<script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(err => console.error('Service Worker registration failed:', err)); }); }</script>
 </body>
 </html>

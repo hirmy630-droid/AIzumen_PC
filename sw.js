@@ -1,48 +1,63 @@
-const CACHE_NAME = 'kyowa-roof-cache-20260927-02';
+const CACHE_NAME = 'kyowa-ai-pwa-v202609290848';
 const ASSETS = [
   './',
   './index.html',
+  './index.html?v=202609290848',
   './manifest.json',
+  './manifest.json?v=202609290848',
   './icon-180.png',
   './icon-192.png',
   './icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(ASSETS))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
+    caches.keys().then((keys) =>
+      Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
             return caches.delete(key);
           }
         })
-      );
-    }).then(() => self.clients.claim())
+      )
+    ).then(() => self.clients.claim())
   );
 });
 
-// ネットワークファースト（常に最新版を優先取得）
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  // AIのAPI通信はキャッシュさせない
   if (event.request.url.includes('generativelanguage.googleapis.com')) return;
 
+  // Network First strategy
   event.respondWith(
     fetch(event.request)
-      .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const resClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+      .then((response) => {
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
         }
-        return networkResponse;
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
+        });
+        return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => {
+        return caches.match(event.request);
+      })
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
