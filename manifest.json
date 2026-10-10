@@ -3,7 +3,7 @@
   "name": "図面AI自動読取＆材料計算 - KYOWA ROOF",
   "short_name": "図面計算",
   "lang": "ja",
-  "start_url": "./index.html?v=20261010-051800",
+  "start_url": "./index.html?v=20261010-053000",
   "scope": "./",
   "display": "standalone",
   "background_color": "#09090b",

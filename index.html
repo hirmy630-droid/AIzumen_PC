@@ -314,6 +314,7 @@
           <select id="input-layout-direction" onchange="calculate()" class="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-white text-xs">
             <option value="left">左端から割付</option>
             <option value="right">右端から割付</option>
+            <option value="center">芯割（両端均等）</option>
           </select>
           <span class="text-zinc-400">開口のXは常に壁左端からの距離</span>
         </div>
@@ -1264,8 +1265,9 @@
 
       alertBox.classList.add('hidden');
 
-      // 入力のXは左端基準のまま保持。右端割付時のみ計算用の開口位置を反転する。
-      const layoutOpenings = document.getElementById('input-layout-direction').value === 'right'
+      // 入力のXは左端基準のまま保持。右端割付は開口位置を反転して既存の列判定を使う。
+      const layoutDirection = document.getElementById('input-layout-direction').value;
+      const layoutOpenings = layoutDirection === 'right'
         ? openingsData.map(op => ({ ...op, x: W - (op.x || 0) - op.w }))
         : openingsData;
 
@@ -1279,6 +1281,16 @@
       if (elCenterDim) elCenterDim.innerHTML = `${centerDim}<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span>`;
 
       const totalSheets = Math.ceil(W / Pitch);
+      const getSheetRange = (s) => {
+        if (layoutDirection !== 'center' || totalSheets === 1) {
+          const xStart = s * Pitch;
+          const xEnd = Math.min((s + 1) * Pitch, W);
+          return [xStart, xEnd];
+        }
+        if (s === 0) return [0, centerDim];
+        if (s === totalSheets - 1) return [W - centerDim, W];
+        return [centerDim + (s - 1) * Pitch, centerDim + s * Pitch];
+      };
 
       let totalOpM2Raw = 0;
       openingsData.forEach(op => {
@@ -1296,8 +1308,7 @@
         let standalone7500Count = 0;
 
         for (let s = 0; s < totalSheets; s++) {
-          const xStart = s * Pitch;
-          const xEnd = Math.min((s + 1) * Pitch, W);
+          const [xStart, xEnd] = getSheetRange(s);
 
           const insideOps = layoutOpenings.filter(op => {
             if (op.w <= 0 || op.h <= 0) return false;
@@ -1343,12 +1354,11 @@
           }
         }
 
-        renderResults(totalSheets, fullSheetsCount, H, topPieces, midPieces, botPieces, W, totalOpM2Raw);
+        renderResults(totalSheets, fullSheetsCount, H, topPieces, midPieces, botPieces, W, totalOpM2Raw, centerDim);
       } else {
         let fullSheetsCount = 0;
         for (let s = 0; s < totalSheets; s++) {
-          const xStart = s * Pitch;
-          const xEnd = Math.min((s + 1) * Pitch, W);
+          const [xStart, xEnd] = getSheetRange(s);
           const xMid = (xStart + xEnd) / 2;
 
           const hitOps = layoutOpenings.filter(op => {
@@ -1387,11 +1397,11 @@
             }
           }
         }
-        renderResults(totalSheets, fullSheetsCount, H, topPieces, midPieces, botPieces, W, totalOpM2Raw);
+        renderResults(totalSheets, fullSheetsCount, H, topPieces, midPieces, botPieces, W, totalOpM2Raw, centerDim);
       }
     }
 
-    function renderResults(totalSheets, fullSheetsCount, H, topPieces, midPieces, botPieces, W, totalOpM2Raw) {
+    function renderResults(totalSheets, fullSheetsCount, H, topPieces, midPieces, botPieces, W, totalOpM2Raw, centerDim) {
       const formatPieces = (dict) => {
         const entries = Object.entries(dict);
         if (entries.length === 0) return '0枚';
@@ -1407,7 +1417,8 @@
         for (const count of Object.values(pieces)) materialCount += count;
       }
       document.getElementById('res-total-sheets').textContent = `${materialCount.toLocaleString()} 枚`;
-      const directionLabel = document.getElementById('input-layout-direction').value === 'right' ? '右端から' : '左端から';
+      const direction = document.getElementById('input-layout-direction').value;
+      const directionLabel = direction === 'right' ? '右端から' : direction === 'center' ? `芯割・両端${centerDim.toLocaleString()}mmずつ` : '左端から';
       document.getElementById('res-layout-columns').textContent = `${totalSheets.toLocaleString()} 列（${directionLabel}）`;
       document.getElementById('res-full-info').textContent = `L=${H}mm × ${fullSheetsCount}枚`;
       document.getElementById('res-top-info').textContent = formatPieces(topPieces);

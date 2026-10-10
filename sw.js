@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '20261010-051800';
+const VERSION = '20261010-053000';
 const SCOPE = self.registration.scope;
 const PREFIX = 'kyowa-drawing:' + SCOPE + ':';
 const CACHE = PREFIX + VERSION;
