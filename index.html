@@ -47,7 +47,7 @@
   <!-- PDF.js: 高解像度ベクター展開エンジン -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   </script>
 
   <!-- Cropper.js: iPad/Mac 完全最適化トリミング -->
@@ -143,6 +143,16 @@
       width: 14px;
       height: 14px;
     }
+    @media (max-width: 767px) {
+      body > header { flex-wrap: wrap; gap: 0.5rem; }
+      body > div.flex-1 { overflow-y: auto; display: block; }
+      body > div.flex-1 > div { margin-bottom: 0.5rem; min-width: 0; }
+      #preview-wrapper { min-height: 220px; }
+      #openings-container > div { flex-wrap: wrap; }
+      #openings-container > div > div:nth-child(2) {
+        flex-basis: 100%; flex-wrap: wrap; justify-content: flex-start;
+      }
+    }
   </style>
 </head>
 
@@ -182,7 +192,7 @@
 
       <!-- ドロップゾーン (Macドラッグ＆ドロップ / iPadファイル選択対応) -->
       <div id="drop-zone" onclick="document.getElementById('file-input').click()" class="flex-none border-2 border-dashed border-zinc-700 hover:border-orange-500 rounded-lg p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-zinc-900/60 relative group">
-        <input type="file" id="file-input" accept="application/pdf,image/*" class="hidden">
+        <input type="file" id="file-input" onclick="event.stopPropagation()" accept="application/pdf,image/*" class="hidden">
         <div id="drop-prompt" class="flex flex-col items-center gap-0.5 pointer-events-none">
           <div class="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-orange-400 group-hover:scale-110 transition-transform">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
@@ -454,6 +464,35 @@
     let originalImageMimeType = 'image/png';
     let savedApiKey = localStorage.getItem('kyowa_gemini_api_key') || '';
     let cropperInstance = null;
+    let cropInitTimer = null;
+    let fileLoading = false;
+    let analyzing = false;
+    let lockedControls = [];
+
+    function lockAnalysisControls() {
+      lockedControls = Array.from(document.querySelectorAll('button, input')).map(el => ({ el, disabled: el.disabled }));
+      lockedControls.forEach(({ el }) => { el.disabled = true; });
+    }
+
+    function unlockAnalysisControls() {
+      lockedControls.forEach(({ el, disabled }) => { el.disabled = disabled; });
+      lockedControls = [];
+    }
+
+    function finishFileLoad(ok) {
+      fileLoading = false;
+      document.getElementById('btn-analyze').disabled = !ok;
+      document.getElementById('btn-open-crop').disabled = !ok;
+      if (!ok) {
+        currentBase64Image = null;
+        originalBase64Image = null;
+        document.getElementById('image-preview').classList.add('hidden');
+        document.getElementById('pdf-canvas').classList.add('hidden');
+        document.getElementById('preview-placeholder').classList.remove('hidden');
+        document.getElementById('file-info').textContent = '読み込みに失敗しました。ファイルを選び直してください';
+      }
+    }
+
 
     // iPad / Mac Safari 向けフォーカス時全選択（InvalidStateError防止対応）
     document.addEventListener('focusin', (e) => {
@@ -598,10 +637,21 @@
       }
     });
 
+    previewWrapper.addEventListener('touchcancel', () => {
+      isDragging = false;
+      touchStartDist = 0;
+    });
+    window.addEventListener('blur', () => {
+      isDragging = false;
+      touchStartDist = 0;
+    });
+
     // ==========================================
     // トリミング（原寸高解像度切り抜き）機能
     // ==========================================
     function openCropModal() {
+      if (fileLoading || analyzing) return;
+      if (!window.Cropper) { showToast('トリミング機能を読み込めません。再読み込みしてください'); return; }
       if (!currentBase64Image) {
         showToast('先に図面をアップロードしてください');
         return;
@@ -618,7 +668,9 @@
         cropperInstance = null;
       }
 
-      setTimeout(() => {
+      clearTimeout(cropInitTimer);
+      cropInitTimer = setTimeout(() => {
+        if (modal.classList.contains('hidden')) return;
         cropperInstance = new Cropper(cropImg, {
           viewMode: 1,
           dragMode: 'move',
@@ -635,6 +687,8 @@
     }
 
     function closeCropModal() {
+      clearTimeout(cropInitTimer);
+      cropInitTimer = null;
       const modal = document.getElementById('crop-modal');
       modal.classList.add('hidden');
       if (cropperInstance) {
@@ -682,6 +736,7 @@
     }
 
     function resetToOriginalImage() {
+      if (fileLoading || analyzing) return;
       if (!originalBase64Image) return;
 
       currentBase64Image = originalBase64Image;
@@ -762,7 +817,9 @@
 
     fileInput.addEventListener('change', (e) => {
       if (e.target.files && e.target.files.length > 0) {
-        handleFile(e.target.files[0]);
+        const selectedFile = e.target.files[0];
+        e.target.value = '';
+        handleFile(selectedFile);
       }
     });
 
@@ -803,6 +860,23 @@
     // ==========================================
     async function handleFile(file) {
       if (!file) return;
+      if (fileLoading || analyzing) { showToast('処理が終わってから図面を選択してください'); return; }
+      if (!(file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf') || file.type.startsWith('image/'))) {
+        showToast('PDFまたは画像ファイルを選択してください');
+        return;
+      }
+      closeCropModal();
+      fileLoading = true;
+      currentBase64Image = null;
+      originalBase64Image = null;
+      document.getElementById('input-wallW').value = '';
+      document.getElementById('input-wallH').value = '';
+      openingsData = [];
+      renderOpenings();
+      calculate();
+      document.getElementById('image-preview').classList.add('hidden');
+      document.getElementById('pdf-canvas').classList.add('hidden');
+      document.getElementById('preview-placeholder').classList.remove('hidden');
 
       document.getElementById('drop-prompt').classList.add('hidden');
       const fileInfo = document.getElementById('file-info');
@@ -811,8 +885,8 @@
 
       const btnAnalyze = document.getElementById('btn-analyze');
       const btnCrop = document.getElementById('btn-open-crop');
-      btnAnalyze.disabled = false;
-      btnCrop.disabled = false;
+      btnAnalyze.disabled = true;
+      btnCrop.disabled = true;
 
       document.getElementById('badge-cropped').classList.add('hidden');
       document.getElementById('btn-reset-crop').classList.add('hidden');
@@ -859,13 +933,16 @@
             originalBase64Image = base64;
             originalImageMimeType = 'image/png';
 
+            finishFileLoad(true);
             resetZoom();
             showToast('PDFを超高画質で展開しました（文字の潰れを防止）');
           } catch (err) {
+            finishFileLoad(false);
             console.error('PDF描画エラー:', err);
             showToast('PDFの展開に失敗しました');
           }
         };
+        fileReader.onerror = fileReader.onabort = () => { finishFileLoad(false); showToast('ファイルを読み込めませんでした'); };
         fileReader.readAsArrayBuffer(file);
       } else if (file.type.startsWith('image/')) {
         const reader = new FileReader();
@@ -880,14 +957,24 @@
           originalImageMimeType = mimeType;
 
           const imgPreview = document.getElementById('image-preview');
+          imgPreview.onload = () => {
+            imgPreview.onload = imgPreview.onerror = null;
+            finishFileLoad(true);
+            showToast('画像ファイルを無劣化・原寸最高画質で読み込みました');
+          };
+          imgPreview.onerror = () => {
+            imgPreview.onload = imgPreview.onerror = null;
+            finishFileLoad(false);
+            showToast('画像を表示できません。PNGまたはJPEGを選択してください');
+          };
           imgPreview.src = rawDataUrl;
           imgPreview.classList.remove('hidden');
           document.getElementById('pdf-canvas').classList.add('hidden');
           document.getElementById('preview-placeholder').classList.add('hidden');
 
           resetZoom();
-          showToast('画像ファイルを無劣化・原寸最高画質で読み込みました');
         };
+        reader.onerror = reader.onabort = () => { finishFileLoad(false); showToast('ファイルを読み込めませんでした'); };
         reader.readAsDataURL(file);
       } else {
         showToast('PDFまたは画像ファイルを選択してください');
@@ -898,11 +985,15 @@
     // Gemini AI 自動読取処理
     // ==========================================
     async function analyzeCurrentDocument() {
+      if (fileLoading || analyzing) return;
+      if (!savedApiKey) { openApiKeyModal(); showToast('APIキーを設定してください'); return; }
       if (!currentBase64Image) {
         showToast('図面ファイルを選択してください');
         return;
       }
 
+      analyzing = true;
+      lockAnalysisControls();
       const overlay = document.getElementById('loading-overlay');
       overlay.classList.remove('hidden');
 
@@ -1002,16 +1093,20 @@
         showToast(`${err.message || 'AI読取に失敗しました'}`);
       } finally {
         overlay.classList.add('hidden');
+        analyzing = false;
+        unlockAnalysisControls();
       }
     }
 
     function applyExtractedData(data) {
-      if (data.wallW) document.getElementById('input-wallW').value = data.wallW;
-      if (data.wallH) document.getElementById('input-wallH').value = data.wallH;
+      if (!data || typeof data !== 'object') throw new Error('読取結果の形式が不正です');
+      document.getElementById('input-wallW').value = data.wallW ?? '';
+      document.getElementById('input-wallH').value = data.wallH ?? '';
+      openingsData = [];
 
       if (data.openings && Array.isArray(data.openings) && data.openings.length > 0) {
         openingsData = data.openings.map((op, idx) => {
-          let label = op.label || `開口${idx + 1}`;
+          let label = String(op.label || `開口${idx + 1}`);
           label = label.replace(/^opening[\s_\-]?(\d+)/i, '開口$1');
           return {
             id: Date.now() + idx,
@@ -1346,13 +1441,24 @@
     }
 
     function fallbackCopy(text) {
-      const tempTextArea = document.createElement("textarea");
+      const tempTextArea = document.createElement('textarea');
+      const previousFocus = document.activeElement;
       tempTextArea.value = text;
+      tempTextArea.readOnly = true;
+      tempTextArea.style.position = 'fixed';
+      tempTextArea.style.opacity = '0';
       document.body.appendChild(tempTextArea);
-      tempTextArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(tempTextArea);
-      showToast('計算結果をコピーしました');
+      try {
+        tempTextArea.focus({ preventScroll: true });
+        tempTextArea.select();
+        const copied = document.execCommand('copy');
+        showToast(copied ? '計算結果をコピーしました' : 'コピーできませんでした');
+      } catch (_) {
+        showToast('コピーできませんでした');
+      } finally {
+        tempTextArea.remove();
+        if (previousFocus && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
+      }
     }
 
     async function saveScreenshot() {

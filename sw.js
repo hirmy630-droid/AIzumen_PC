@@ -1,63 +1,61 @@
-const CACHE_NAME = 'kyowa-ai-pwa-v202609290848';
-const ASSETS = [
-  './',
-  './index.html',
-  './index.html?v=202609290848',
-  './manifest.json',
-  './manifest.json?v=202609290848',
-  './icon-180.png',
-  './icon-192.png',
-  './icon-512.png'
-];
+'use strict';
+const VERSION = '20261010-134838';
+const SCOPE = self.registration.scope;
+const PREFIX = 'kyowa-drawing:' + SCOPE + ':';
+const CACHE = PREFIX + VERSION;
+const INDEX = new URL('index.html', SCOPE).href;
+const MANIFEST = new URL('manifest.json', SCOPE).href;
+const ICONS = ['icon-180.png', 'icon-192.png', 'icon-512.png'].map(path => new URL(path, SCOPE).href);
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(ASSETS))
-      .then(() => self.skipWaiting())
-  );
+self.addEventListener('install', event => {
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    // Refresh even when the unchanged HTML registers the same worker URL.
+    const response = await fetch(INDEX, { cache: 'reload' });
+    if (!response.ok) throw new Error('index.html could not be loaded');
+    await cache.put(INDEX, response);
+    await self.skipWaiting();
+  })());
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
-      )
-    ).then(() => self.clients.claim())
-  );
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key.startsWith(PREFIX) && key !== CACHE).map(key => caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
 
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  // AIのAPI通信はキャッシュさせない
-  if (event.request.url.includes('generativelanguage.googleapis.com')) return;
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
+});
 
-  // Network First strategy
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (!response || response.status !== 200 || response.type !== 'basic') {
-          return response;
-        }
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  const root = new URL(SCOPE);
+  if (url.origin !== root.origin) return;
+  const isIndex = request.mode === 'navigate' &&
+    (url.pathname === root.pathname || url.pathname === new URL(INDEX).pathname);
+  const resource = url.origin + url.pathname;
+  if (!isIndex && resource !== MANIFEST && !ICONS.includes(resource)) return;
+  // Other HTML files and AI API requests are never stored as the app entry.
+  const key = isIndex ? INDEX : resource;
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    try {
+      const response = await fetch(request, { cache: 'no-store' });
+      if (response.ok) {
+        try { await cache.put(key, response.clone()); } catch (_) {}
         return response;
-      })
-      .catch(() => {
-        return caches.match(event.request);
-      })
-  );
-});
-
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+      }
+      const saved = await cache.match(key);
+      return saved || response;
+    } catch (error) {
+      const saved = await cache.match(key);
+      if (saved) return saved;
+      throw error;
+    }
+  })());
 });
