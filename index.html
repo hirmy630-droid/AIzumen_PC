@@ -309,6 +309,15 @@
           <span class="text-[12px] text-orange-400 font-semibold whitespace-nowrap">現場最適化</span>
         </div>
 
+        <div class="flex flex-wrap items-center gap-2 bg-black/40 border border-zinc-800 px-2 py-1 rounded text-xs">
+          <label for="input-layout-direction" class="text-zinc-300 font-semibold">割付開始</label>
+          <select id="input-layout-direction" onchange="calculate()" class="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-white text-xs">
+            <option value="left">左端から割付</option>
+            <option value="right">右端から割付</option>
+          </select>
+          <span class="text-zinc-400">開口のXは常に壁左端からの距離</span>
+        </div>
+
         <div class="grid grid-cols-2 gap-1.5">
           <div class="bg-black/60 border border-zinc-800 rounded px-2 py-1 flex justify-between items-center">
             <span class="text-xs text-zinc-400 font-semibold">全幅 (W)</span>
@@ -333,8 +342,12 @@
       <!-- 材料取り内訳（計算結果） -->
       <div class="bg-zinc-900 border border-orange-500/80 rounded-lg p-2 text-xs flex flex-col gap-1 flex-none shadow-sm">
         <div class="flex justify-between items-center pb-1 border-b border-zinc-800">
-          <span class="font-bold text-zinc-200">【結果】総必要枚数</span>
+          <span class="font-bold text-zinc-200">【結果】必要材料合計</span>
           <span class="font-extrabold text-sky-400 font-mono text-[20px]" id="res-total-sheets">0 枚</span>
+        </div>
+        <div class="flex justify-between items-center text-zinc-400">
+          <span>横方向の割付</span>
+          <span id="res-layout-columns" class="font-mono">0 列</span>
         </div>
         <div class="flex justify-between items-center py-0">
           <span class="text-zinc-400 font-medium">最長部</span>
@@ -357,11 +370,11 @@
       <!-- 【一番下】端寸ステータス表示（片張余り・芯割余り） -->
       <div class="grid grid-cols-2 gap-1.5 flex-none">
         <div class="bg-zinc-900 border border-sky-500/60 rounded-lg p-2 flex justify-between items-center">
-          <span class="text-xs font-bold text-sky-400">片張余り</span>
+          <span class="text-xs font-bold text-sky-400">反対端の働き幅</span>
           <div class="text-[20px] font-extrabold font-mono text-white" id="disp-end-dim">0<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span></div>
         </div>
         <div class="bg-zinc-900 border border-green-500/60 rounded-lg p-2 flex justify-between items-center">
-          <span class="text-xs font-bold text-green-400">芯割余り</span>
+          <span class="text-xs font-bold text-green-400">芯割時の端幅（参考）</span>
           <div class="text-[20px] font-extrabold font-mono text-white" id="disp-center-dim">0<span class="text-[12px] text-zinc-400 font-normal ml-0.5">mm</span></div>
         </div>
       </div>
@@ -1217,6 +1230,7 @@
 
     function resetOutputDisplays(msg = '未確定') {
       document.getElementById('res-total-sheets').textContent = msg;
+      document.getElementById('res-layout-columns').textContent = msg;
       document.getElementById('res-full-info').textContent = '---';
       document.getElementById('res-top-info').textContent = '---';
       document.getElementById('res-mid-info').textContent = '---';
@@ -1250,6 +1264,11 @@
 
       alertBox.classList.add('hidden');
 
+      // 入力のXは左端基準のまま保持。右端割付時のみ計算用の開口位置を反転する。
+      const layoutOpenings = document.getElementById('input-layout-direction').value === 'right'
+        ? openingsData.map(op => ({ ...op, x: W - (op.x || 0) - op.w }))
+        : openingsData;
+
       const mod = W % Pitch;
       const endDim = (mod === 0) ? Pitch : Math.round(mod);
       const centerDim = (mod === 0) ? Pitch : Math.round((mod + Pitch) / 2);
@@ -1280,7 +1299,7 @@
           const xStart = s * Pitch;
           const xEnd = Math.min((s + 1) * Pitch, W);
 
-          const insideOps = openingsData.filter(op => {
+          const insideOps = layoutOpenings.filter(op => {
             if (op.w <= 0 || op.h <= 0) return false;
             const opLeft = op.x || 0;
             const opRight = opLeft + op.w;
@@ -1332,7 +1351,7 @@
           const xEnd = Math.min((s + 1) * Pitch, W);
           const xMid = (xStart + xEnd) / 2;
 
-          const hitOps = openingsData.filter(op => {
+          const hitOps = layoutOpenings.filter(op => {
             if (op.w <= 0 || op.h <= 0) return false;
             const opLeft = op.x || 0;
             const opRight = opLeft + op.w;
@@ -1382,7 +1401,14 @@
           .join(', ');
       };
 
-      document.getElementById('res-total-sheets').textContent = `${totalSheets.toLocaleString()} 枚`;
+      // 横の列数とは別に、長さ別内訳の全材料を集計する。
+      let materialCount = fullSheetsCount;
+      for (const pieces of [topPieces, midPieces, botPieces]) {
+        for (const count of Object.values(pieces)) materialCount += count;
+      }
+      document.getElementById('res-total-sheets').textContent = `${materialCount.toLocaleString()} 枚`;
+      const directionLabel = document.getElementById('input-layout-direction').value === 'right' ? '右端から' : '左端から';
+      document.getElementById('res-layout-columns').textContent = `${totalSheets.toLocaleString()} 列（${directionLabel}）`;
       document.getElementById('res-full-info').textContent = `L=${H}mm × ${fullSheetsCount}枚`;
       document.getElementById('res-top-info').textContent = formatPieces(topPieces);
       document.getElementById('res-mid-info').textContent = formatPieces(midPieces);
@@ -1413,6 +1439,7 @@
       const H = document.getElementById('input-wallH').value;
       const pitch = document.getElementById('input-pitch').value;
       const total = document.getElementById('res-total-sheets').textContent;
+      const layout = document.getElementById('res-layout-columns').textContent;
       const full = document.getElementById('res-full-info').textContent;
       const top = document.getElementById('res-top-info').textContent;
       const mid = document.getElementById('res-mid-info').textContent;
@@ -1422,7 +1449,8 @@
 
       const text = `【図面材料計算結果】
 壁寸法: W ${W}mm × H ${H}mm (働幅: ${pitch}mm)
-総必要枚数: ${total}
+必要材料合計: ${total}
+横方向の割付: ${layout}
 ・最長部: ${full}
 ・開口上: ${top}
 ・開口間(中間): ${mid}

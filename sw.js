@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '20261010-134838';
+const VERSION = '20261010-051800';
 const SCOPE = self.registration.scope;
 const PREFIX = 'kyowa-drawing:' + SCOPE + ':';
 const CACHE = PREFIX + VERSION;
@@ -10,7 +10,6 @@ const ICONS = ['icon-180.png', 'icon-192.png', 'icon-512.png'].map(path => new U
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-    // Refresh even when the unchanged HTML registers the same worker URL.
     const response = await fetch(INDEX, { cache: 'reload' });
     if (!response.ok) throw new Error('index.html could not be loaded');
     await cache.put(INDEX, response);
@@ -40,7 +39,6 @@ self.addEventListener('fetch', event => {
     (url.pathname === root.pathname || url.pathname === new URL(INDEX).pathname);
   const resource = url.origin + url.pathname;
   if (!isIndex && resource !== MANIFEST && !ICONS.includes(resource)) return;
-  // Other HTML files and AI API requests are never stored as the app entry.
   const key = isIndex ? INDEX : resource;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
